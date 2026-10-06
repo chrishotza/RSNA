@@ -1,0 +1,28 @@
+experiment_id: EXP-0000
+name: public_anchor_inventory
+stage: anchor
+source_repo: NTejas-1/RSNA-Knee-Abnormality-Detection
+reported_public_lb: 0.941
+parent_reference_reported_lb: 0.940
+metric: macro_roc_auc
+labels:
+  - ACL
+  - MCL
+  - Medial Meniscus
+  - Lateral Meniscus
+  - Medial OA
+  - Lateral OA
+  - PF OA
+  - Effusion
+  - Synovitis
+  - Baker's
+  - Contusion
+  - Fracture
+constraints:
+  max_runtime_hours: 9
+  internet: false
+  external_public_data_allowed: true
+method:
+  ensemble: rank_blend
+  preserve_parent_as_senior_signal: true
+  require_complementarity_against_parent: true
