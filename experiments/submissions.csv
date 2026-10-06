@@ -1,0 +1,3 @@
+experiment_id,git_commit,model_family,geometry,labels,proxy_silver,proxy_gold,public_lb,lb_delta,submission_id,public_rank,private_score,notes
+EXP-0000,dc39d13a001a2d5b0ea43096b235cc9a896d0a69,anchor,UNKNOWN,UNKNOWN,,,,,,,,"Not submitted yet; reproduce baseline first"
+EXP-0001,638d72a928b36a15035c9500d84959066c7534b3,public_0943_reference,6slot_DINO_plus_stack,public_stack,,,,,,,,"External public score reference only; no local proxy attached yet"
