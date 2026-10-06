@@ -1,3 +1,4 @@
 experiment_id,status,parent,component,hypothesis,config,local_macro_auc,public_lb,delta_public,rank_corr_parent,runtime_hours,gpu_memory_gb,decision,notes
 EXP-0000,ANCHOR,,baseline,Public reproducible anchor,NTejas-1 0.941,,,,,,0,ACTIVE,Baseline inventory only; reproduce before optimization
 EXP-0001,REFERENCE,EXP-0000,score-anchor,Use the strongest currently visible public score as an external target,Aman Atar Kaggle notebook V6 0.943,,,,,,0,TARGET,"Score anchor only; code provenance and exact pipeline still need reconstruction"
+EXP-A0,READY,EXP-0000,public_0941_reproduction,Validate the frozen public 0.941 implementation before modifying anything,A0 notebook frozen in notebooks/A0_public_0941,,,,,,0,READY_FOR_KAGGLE,"25 cells; blend cell and publication gates verified; internet disabled; T4 metadata preserved"
