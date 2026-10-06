@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from typing import Iterable
 
@@ -114,3 +115,25 @@ def append_submission_record(
             raise ValueError("duplicate Kaggle submission_id")
 
     out.to_csv(path, index=False)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="RSNA macro-AUC proxy scorer")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    score = sub.add_parser("score", help="score a single OOF CSV")
+    score.add_argument("--oof", required=True)
+
+    args = parser.parse_args()
+
+    if args.command == "score":
+        result = score_oof_file(args.oof)
+        print(f"studies: {result['n_studies']}")
+        print(f"macro_auc: {result['macro_auc']:.8f}")
+        print("per_label_auc:")
+        for label, auc in result["per_label_auc"].items():
+            print(f"  {label}: {auc:.8f}")
+
+
+if __name__ == "__main__":
+    main()
