@@ -31,7 +31,7 @@ jobs:
           test -n "${KAGGLE_API_TOKEN:-}"
           owner="chrishotza"
           kaggle kernels list --mine --page-size 5 -v | tee /tmp/my-kernels.csv
-          grep -q "^\${owner}/" /tmp/my-kernels.csv
+          grep -q "^${owner}/" /tmp/my-kernels.csv
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "Kaggle owner resolved: $owner"
 
