@@ -26,21 +26,14 @@ jobs:
 
       - name: Resolve Kaggle owner
         id: owner
-        shell: bash
         run: |
           set -euo pipefail
-          kaggle kernels list --mine --page-size 5 -v > /tmp/my-kernels.csv
-          cat /tmp/my-kernels.csv
-          owner="$(awk -F',' 'NR>1 && $1 ~ /// {split($1,a,"/"); print a[1]; exit}' /tmp/my-kernels.csv)"
-          if [ -z "$owner" ]; then
-            kaggle datasets list --mine --page-size 5 -v > /tmp/my-datasets.csv
-            cat /tmp/my-datasets.csv
-            owner="$(awk -F',' 'NR>1 && $1 ~ /// {split($1,a,"/"); print a[1]; exit}' /tmp/my-datasets.csv)"
-          fi
-          test -n "$owner"
+          test -n "${KAGGLE_API_TOKEN:-}"
+          owner="chrishotza"
+          kaggle kernels list --mine --page-size 5 -v | tee /tmp/my-kernels.csv
+          grep -q "^${owner}/" /tmp/my-kernels.csv
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "Kaggle owner resolved: $owner"
-
       - name: Build A0 baseline notebook
         env:
           KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
