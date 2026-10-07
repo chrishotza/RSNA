@@ -1,13 +1,17 @@
+name: Kaggle A0 score audit
+
 on:
   workflow_dispatch:
 
 jobs:
-  a0:
+  audit:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      A0_SUBMISSION_REF: "56906411"
+      A0_MESSAGE: "A0 parent baseline recovery — first external calibration score"
 
     steps:
       - name: Checkout
@@ -18,110 +22,17 @@ jobs:
           python -m pip install --upgrade kaggle
           kaggle --version
 
-      - name: Resolve Kaggle owner
-        id: owner
-        run: |
-          set -euo pipefail
-          test -n "${KAGGLE_API_TOKEN:-}"
-          owner="chrishotza"
-          kaggle kernels list --mine --page-size 5 -v | tee /tmp/my-kernels.csv
-          grep -q "^${owner}/" /tmp/my-kernels.csv
-          echo "owner=$owner" >> "$GITHUB_OUTPUT"
-          echo "Kaggle owner resolved: $owner"
-
-      - name: Build A0 baseline notebook
-        env:
-          KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
-        run: |
-          set -euo pipefail
-          mkdir -p build/a0
-          cp notebooks/A0_public_0941/rsna-knee-blend-full.ipynb build/a0/a0-parent-baseline.ipynb
-          cp notebooks/A0_public_0941/kernel-metadata.json build/a0/kernel-metadata.json
-
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          p=Path("build/a0/a0-parent-baseline.ipynb")
-          nb=json.loads(p.read_text())
-          replaced=0
-          for cell in nb["cells"]:
-              src="".join(cell.get("source", []))
-              if "APPENDED ARM BLEND" in src:
-                  cell["source"]=[
-                      "# A0 RECOVERY BASELINE\n",
-                      "# The documented arm checkpoints are currently unavailable from Kaggle.\n",
-                      "# Preserve the untouched parent pipeline so the first external score measures\n",
-                      "# the reproducible 0.940/0.941 reference path rather than a failed blend.\n",
-                      "print('[A0_RECOVERY] Arm checkpoints unavailable; leaving _pipeline_stage.csv unchanged.')\n"
-                  ]
-                  cell["execution_count"]=None
-                  cell["outputs"]=[]
-                  replaced += 1
-          if replaced != 1:
-              raise SystemExit(f"expected exactly one arm-blend cell, found {replaced}")
-          p.write_text(json.dumps(nb, indent=1, ensure_ascii=False))
-          print("patched A0 arm-blend cell:", replaced)
-          PY
-
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          p=Path("build/a0/kernel-metadata.json")
-          m=json.loads(p.read_text())
-          owner=os.environ["KAGGLE_OWNER"]
-          m["id"]=f"{owner}/rsna-a0-parent-baseline"
-          m["title"]="rsna-a0-parent-baseline"
-          m["code_file"]="a0-parent-baseline.ipynb"
-          m["is_private"]=True
-          m["enable_gpu"]=True
-          m["enable_internet"]=False
-          p.write_text(json.dumps(m, indent=2))
-          print(m["id"])
-          print(m["title"])
-          PY
-
-          cat build/a0/kernel-metadata.json
-
-      - name: Reuse completed A0 kernel version
-        env:
-          KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
+      - name: Audit existing A0 submissions only
         run: |
           set -euo pipefail
           mkdir -p out/a0
-          kernel="$KAGGLE_OWNER/rsna-a0-parent-baseline"
-          kernel_version="2"
-          echo "kernel=$kernel" >> "$GITHUB_ENV"
-          echo "kernel_version=$kernel_version" >> "$GITHUB_ENV"
-          echo "Reusing verified completed Kaggle kernel: $kernel/$kernel_version"
-          kaggle kernels status "$kernel/$kernel_version" | tee out/a0/reused-kernel-status.txt
 
-      - name: Verify completed A0 kernel
-        run: |
-          set -euo pipefail
-          status="$(kaggle kernels status "$kernel/$kernel_version" 2>&1 | tail -n 1)"
-          echo "$status"
-          case "$status" in
-            *"COMPLETE"*|*"complete"*|*"Complete"*) exit 0 ;;
-            *) echo "Expected completed A0 kernel version $kernel_version, got: $status"; exit 1 ;;
-          esac
+          echo "IMPORTANT: audit-only workflow; it will NOT create, run, or submit any Kaggle notebook."
 
-      - name: Download A0 submission artifact
-        run: |
-          set -euo pipefail
-          mkdir -p out/a0
-          kaggle kernels files "$kernel/$kernel_version" -v --page-size 200 | tee out/a0/kernel-files.csv
-          kaggle kernels output "$kernel/$kernel_version" -p out/a0 -o
-          find out/a0 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
-          test -s out/a0/submission.csv
+          kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/a0/all-submissions.csv
 
-      - name: Recover A0 submission status and public score
-        run: |
-          set -euo pipefail
-          target="A0 parent baseline recovery — first external calibration score"
-          for i in $(seq 1 720); do
-            kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/a0/all-submissions.csv
-            python - <<'PY'
-          import csv, json, sys
+          python - <<'PY'
+          import csv, json
           from pathlib import Path
 
           p=Path("out/a0/all-submissions.csv")
@@ -131,7 +42,7 @@ jobs:
           def field(r, *names):
               for n in names:
                   v=r.get(n)
-                  if v is not None and str(v).strip() != "":
+                  if v is not None and str(v).strip():
                       return str(v).strip()
               return ""
 
@@ -141,61 +52,76 @@ jobs:
               if desc == target or target in desc:
                   matches.append(r)
 
-          if not matches:
-              print("NO_A0_SUBMISSION_YET")
-              print("columns=", list(rows[0].keys()) if rows else [])
-              sys.exit(10)
+          print("A0 matching submissions:", len(matches))
+          for r in matches:
+              print({
+                  "ref": field(r,"ref","id","submissionRef"),
+                  "status": field(r,"status","submissionStatus"),
+                  "publicScore": field(r,"publicScore","public_score","public"),
+                  "submitted": field(r,"submitted","submissionDate","date","created"),
+              })
 
-          def key(r):
-              return field(r,"submitted","submissionDate","date","created") + "|" + field(r,"ref","id","submissionRef")
+          Path("out/a0/a0-matching-submissions.json").write_text(
+              json.dumps(matches, indent=2, ensure_ascii=False)
+          )
 
-          m=sorted(matches,key=key)[-1]
-          ref=field(m,"ref","id","submissionRef")
-          status=field(m,"status","submissionStatus").upper()
-          if status.startswith("SUBMISSIONSTATUS."):
-              status=status.split(".",1)[1]
-          public=field(m,"publicScore","public_score","public")
-          private=field(m,"privateScore","private_score","private")
+          target_ref="56906411"
+          selected=None
+          for r in matches:
+              if field(r,"ref","id","submissionRef") == target_ref:
+                  selected=r
+                  break
 
-          Path("out/a0/recovered-submission.json").write_text(json.dumps(m,indent=2,ensure_ascii=False))
-          Path("out/a0/submission-ref.txt").write_text(ref+"\n")
-          Path("out/a0/submission-status.txt").write_text(json.dumps({
-              "ref":ref,"status":status,"publicScore":public,"privateScore":private
-          },indent=2))
-
-          print("A0_REF",ref)
-          print("A0_STATUS",status)
-          print("A0_PUBLIC_SCORE",public)
-          print("A0_PRIVATE_SCORE",private)
-
-          if status == "COMPLETE" and public:
-              Path("out/a0/public-score.txt").write_text(public+"\n")
-              sys.exit(0)
-
-          if status in {"ERROR","FAILED","REJECTED"}:
-              sys.exit(2)
-
-          sys.exit(11)
+          if selected:
+              Path("out/a0/a0-selected.json").write_text(
+                  json.dumps(selected, indent=2, ensure_ascii=False)
+              )
+              print("Selected A0 ref:", target_ref)
+          else:
+              print("WARNING: expected A0 ref 56906411 was not present in the history response.")
           PY
-            rc=$?
-            case "$rc" in
-              0) cat out/a0/submission-status.txt; cat out/a0/public-score.txt; exit 0 ;;
-              2) cat out/a0/submission-status.txt; exit 1 ;;
-              10|11) sleep 30 ;;
-              *) echo "Unexpected polling rc=$rc"; exit 1 ;;
-            esac
+
+          kaggle competitions submission "$A0_SUBMISSION_REF" | tee out/a0/submission-status-live.txt
+
+      - name: Poll selected A0 submission
+        run: |
+          set -euo pipefail
+          mkdir -p out/a0
+
+          for i in $(seq 1 720); do
+            echo "=== poll $i ==="
+            set +e
+            status="$(kaggle competitions submission "$A0_SUBMISSION_REF" 2>&1 | tee out/a0/submission-status-live.txt)"
+            rc=${PIPESTATUS[0]}
+            set -e
+
+            echo "$status"
+
+            if grep -qiE '^Status:[[:space:]]*COMPLETE|^Status:[[:space:]]*SUBMISSIONSTATUS\.COMPLETE' out/a0/submission-status-live.txt; then
+              grep -iE '^(Submission Ref|Status|Public Score|Private Score|Description|Submission Date):'                 out/a0/submission-status-live.txt | tee out/a0/final-score.txt
+              exit 0
+            fi
+
+            if grep -qiE '^Status:[[:space:]]*(ERROR|FAILED|REJECTED)|^Status:[[:space:]]*SUBMISSIONSTATUS\.(ERROR|FAILED|REJECTED)' out/a0/submission-status-live.txt; then
+              cat out/a0/submission-status-live.txt
+              exit 1
+            fi
+
+            if [ "$rc" -ne 0 ]; then
+              echo "Kaggle status query returned rc=$rc; retrying."
+            fi
+
+            sleep 30
           done
 
-          echo "A0 submission did not reach COMPLETE within 12 hours"
+          echo "Timed out waiting for A0 ref $A0_SUBMISSION_REF"
           exit 1
 
-      - name: Archive first-score evidence
+      - name: Archive A0 audit evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: a0-first-score
+          name: a0-score-audit
           retention-days: 30
           if-no-files-found: warn
-          path: |
-            out/a0/**
-            build/a0/kernel-metadata.json
+          path: out/a0/**
