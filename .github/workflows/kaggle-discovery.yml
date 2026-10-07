@@ -33,7 +33,7 @@ jobs:
             echo "::error::KAGGLE_API_TOKEN is not available to this workflow."
             exit 2
           }
-          kaggle datasets list --user tejuuss --sort-by dateRun -v >/tmp/kaggle_auth_probe.txt
+          kaggle datasets list --user tejuuss --sort-by updated -v >/tmp/kaggle_auth_probe.txt
           cat /tmp/kaggle_auth_probe.txt
 
       - name: Search candidate datasets
