@@ -50,7 +50,7 @@ jobs:
             kaggle datasets list -s "armB_fold0.pt" --sort-by dateRun -v
             echo
             echo "=== search: tejuuss ==="
-            kaggle datasets list --user tejuuss --sort-by dateRun -v
+            kaggle datasets list --user tejuuss --sort-by updated -v
           } 2>&1 | tee kaggle-datasets-search.txt
           exit 0
 
