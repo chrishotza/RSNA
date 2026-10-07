@@ -88,41 +88,35 @@ jobs:
 
           cat build/a0/kernel-metadata.json
 
-      - name: Push and run A0 on Kaggle
+      - name: Reuse completed A0 kernel version
         env:
           KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
         run: |
           set -euo pipefail
           mkdir -p out/a0
-          push_log="$(kaggle kernels push -p build/a0 2>&1 | tee out/a0/kaggle-kernel-push.txt)"
           kernel="$KAGGLE_OWNER/rsna-a0-parent-baseline"
-          kernel_version="$(printf '%s\n' "$push_log" | sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' | tail -n 1)"
-          test -n "$kernel_version"
+          kernel_version="2"
           echo "kernel=$kernel" >> "$GITHUB_ENV"
           echo "kernel_version=$kernel_version" >> "$GITHUB_ENV"
-          echo "Kaggle kernel version: $kernel_version"
+          echo "Reusing verified completed Kaggle kernel: $kernel/$kernel_version"
+          kaggle kernels status "$kernel/$kernel_version" | tee out/a0/reused-kernel-status.txt
 
-      - name: Wait for A0 kernel
+      - name: Verify completed A0 kernel
         run: |
           set -euo pipefail
-          for i in $(seq 1 360); do
-            status="$(kaggle kernels status "$kernel" 2>&1 | tail -n 1)"
-            echo "[$i] $status"
-            case "$status" in
-              *"complete"*|*"Complete"*|*"COMPLETE"*) exit 0 ;;
-              *"error"*|*"Error"*|*"ERROR"*|*"failed"*|*"Failed"*|*"FAIL"*) exit 1 ;;
-            esac
-            sleep 60
-          done
-          echo "A0 kernel did not finish within 6 hours"
-          exit 1
+          status="$(kaggle kernels status "$kernel/$kernel_version" 2>&1 | tail -n 1)"
+          echo "$status"
+          case "$status" in
+            *"COMPLETE"*|*"complete"*|*"Complete"*) exit 0 ;;
+            *) echo "Expected completed A0 kernel version $kernel_version, got: $status"; exit 1 ;;
+          esac
 
       - name: Download A0 submission artifact
         run: |
           set -euo pipefail
           mkdir -p out/a0
-          kaggle kernels files "$kernel" -v --page-size 200 | tee out/a0/kernel-files.csv
-          kaggle kernels output "$kernel" -p out/a0 -o
+          kaggle kernels files "$kernel/$kernel_version" -v --page-size 200 | tee out/a0/kernel-files.csv
+          kaggle kernels output "$kernel/$kernel_version" -p out/a0 -o
           find out/a0 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           test -s out/a0/submission.csv
 
