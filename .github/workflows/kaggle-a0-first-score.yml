@@ -93,7 +93,8 @@ jobs:
           KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
         run: |
           set -euo pipefail
-          push_log="$(kaggle kernels push -p build/a0 2>&1 | tee out/kaggle-kernel-push.txt)"
+          mkdir -p out/a0
+          push_log="$(kaggle kernels push -p build/a0 2>&1 | tee out/a0/kaggle-kernel-push.txt)"
           kernel="$KAGGLE_OWNER/rsna-a0-parent-baseline"
           kernel_version="$(printf '%s\n' "$push_log" | sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' | tail -n 1)"
           test -n "$kernel_version"
