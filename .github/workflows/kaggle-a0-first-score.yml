@@ -2,6 +2,7 @@ name: Kaggle A0 first score
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches:
       - research
