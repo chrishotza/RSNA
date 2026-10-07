@@ -54,6 +54,35 @@ jobs:
           } 2>&1 | tee kaggle-datasets-search.txt
           exit 0
 
+      - name: Probe related public checkpoint datasets
+        shell: bash
+        run: |
+          set +e
+          : > kaggle-related-files.txt
+          for ref in \
+            stevenleehans/rsna-knee-champ-members-only \
+            stevenleehans/rsna-knee-llm199-e30-members \
+            damoonshahhosseini/ct02-teacher-blend-coatnet-checkpoint
+          do
+            echo "=== $ref ===" | tee -a kaggle-related-files.txt
+            kaggle datasets files "$ref" --page-size 200 -v 2>&1 | tee -a kaggle-related-files.txt
+          done
+          echo '=== checkpoint filename matches ===' | tee -a kaggle-related-files.txt
+          grep -Ei 'armA_fold|armB_fold|\.pt|\.pth|checkpoint|weights' kaggle-related-files.txt | tee kaggle-related-matches.txt || true
+
+      - name: Search training kernels and known slugs
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== kernels: arma f01234 ==='
+            kaggle kernels list -s 'rsna-knee-arma-f01234' --sort-by updated -v
+            echo '=== kernels: armb f01234 ==='
+            kaggle kernels list -s 'rsna-knee-armb-f01234' --sort-by updated -v
+            echo '=== kernels: arm ckpt ==='
+            kaggle kernels list -s 'rsna-knee arm checkpoint' --sort-by updated -v
+          } 2>&1 | tee kaggle-kernel-search.txt
+
       - name: Inspect canonical checkpoint dataset
         id: canonical
         shell: bash
