@@ -120,74 +120,77 @@ jobs:
           find out/a0 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
           test -s out/a0/submission.csv
 
-      - name: Submit A0 to competition and wait for public score
+      - name: Recover A0 submission status and public score
         run: |
           set -euo pipefail
-          set +e
-          kaggle competitions submit rsna-knee-abnormality-detection \
-            -k "$kernel" \
-            -v "$kernel_version" \
-            -f submission.csv \
-            -m "A0 parent baseline recovery — first external calibration score" \
-            2>&1 | tee out/a0/submission-submit.txt
-          submit_rc=${PIPESTATUS[0]}
-          set -e
-
-          echo "submit_rc=$submit_rc" | tee out/a0/submission-submit-rc.txt
-
-          ref="$(sed -n 's/^Submission ref:[[:space:]]*//p' out/a0/submission-submit.txt | tail -n 1 || true)"
-
-          if [ -z "$ref" ]; then
-            echo "No submission ref returned. Recovering latest matching competition submission..."
+          target="A0 parent baseline recovery — first external calibration score"
+          for i in $(seq 1 720); do
             kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/a0/all-submissions.csv
-
             python - <<'PY'
-          import csv, sys
+          import csv, json, sys
           from pathlib import Path
+
           p=Path("out/a0/all-submissions.csv")
           rows=list(csv.DictReader(p.open()))
           target="A0 parent baseline recovery — first external calibration score"
-          matches=[r for r in rows if r.get("description","").strip()==target]
+
+          def field(r, *names):
+              for n in names:
+                  v=r.get(n)
+                  if v is not None and str(v).strip() != "":
+                      return str(v).strip()
+              return ""
+
+          matches=[]
+          for r in rows:
+              desc=field(r,"description","title","message")
+              if desc == target or target in desc:
+                  matches.append(r)
+
           if not matches:
-              print("No matching A0 submission found.")
-              print("Columns:", rows[0].keys() if rows else [])
-              sys.exit(2)
+              print("NO_A0_SUBMISSION_YET")
+              print("columns=", list(rows[0].keys()) if rows else [])
+              sys.exit(10)
+
           def key(r):
-              return r.get("submitted") or r.get("date") or r.get("submissionDate") or ""
+              return field(r,"submitted","submissionDate","date","created") + "|" + field(r,"ref","id","submissionRef")
+
           m=sorted(matches,key=key)[-1]
-          ref=m.get("ref") or m.get("id") or m.get("submissionRef")
-          print("RECOVERED_REF", ref)
-          if not ref:
-              print("Recovered row:",m)
-              sys.exit(3)
-          Path("out/a0/submission-ref.txt").write_text(str(ref)+"\n")
+          ref=field(m,"ref","id","submissionRef")
+          status=field(m,"status","submissionStatus").upper()
+          public=field(m,"publicScore","public_score","public")
+          private=field(m,"privateScore","private_score","private")
+
+          Path("out/a0/recovered-submission.json").write_text(json.dumps(m,indent=2,ensure_ascii=False))
+          Path("out/a0/submission-ref.txt").write_text(ref+"\n")
+          Path("out/a0/submission-status.txt").write_text(json.dumps({
+              "ref":ref,"status":status,"publicScore":public,"privateScore":private
+          },indent=2))
+
+          print("A0_REF",ref)
+          print("A0_STATUS",status)
+          print("A0_PUBLIC_SCORE",public)
+          print("A0_PRIVATE_SCORE",private)
+
+          if status == "COMPLETE" and public:
+              Path("out/a0/public-score.txt").write_text(public+"\n")
+              sys.exit(0)
+
+          if status in {"ERROR","FAILED","REJECTED"}:
+              sys.exit(2)
+
+          sys.exit(11)
           PY
-            ref="$(cat out/a0/submission-ref.txt)"
-          fi
-
-          test -n "$ref"
-          echo "submission_ref=$ref" | tee out/a0/submission-ref.txt
-
-          for i in $(seq 1 720); do
-            status="$(kaggle competitions submission "$ref" 2>&1 | tee /tmp/a0-submission-status.txt)"
-            printf '[%03d] %s\n' "$i" "$(printf '%s\n' "$status" | tr '\n' ' ' | cut -c1-500)"
-            printf '%s\n' "$status" > out/a0/submission-status.txt
-
-            if grep -qiE '^Status:[[:space:]]*COMPLETE' /tmp/a0-submission-status.txt; then
-              cp /tmp/a0-submission-status.txt out/a0/submission-result.txt
-              cat /tmp/a0-submission-status.txt
-              exit 0
-            fi
-
-            if grep -qiE '^Status:[[:space:]]*(ERROR|FAILED)' /tmp/a0-submission-status.txt; then
-              cat /tmp/a0-submission-status.txt
-              exit 1
-            fi
-
-            sleep 60
+            rc=$?
+            case "$rc" in
+              0) cat out/a0/submission-status.txt; cat out/a0/public-score.txt; exit 0 ;;
+              2) cat out/a0/submission-status.txt; exit 1 ;;
+              10|11) sleep 30 ;;
+              *) echo "Unexpected polling rc=$rc"; exit 1 ;;
+            esac
           done
 
-          echo "A0 submission did not finish scoring within 12 hours"
+          echo "A0 submission did not reach COMPLETE within 12 hours"
           exit 1
 
       - name: Archive first-score evidence
