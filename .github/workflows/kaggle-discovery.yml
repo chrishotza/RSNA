@@ -3,6 +3,7 @@ name: Kaggle source discovery
 on:
   push:
     branches:
+      - main
       - research
   workflow_dispatch:
 
@@ -13,37 +14,105 @@ jobs:
       contents: read
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Kaggle CLI
-        run: python -m pip install --upgrade kaggle
+      - name: Install current Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
 
       - name: Verify Kaggle authentication
-        run: kaggle auth whoami
-
-      - name: Search Kaggle datasets
         run: |
-          set -o pipefail
-          kaggle datasets list -s "rsna knee arm" --sort-by "updated" | tee kaggle-datasets.txt
-          echo "--- exact armA/armB searches ---"
-          kaggle datasets list -s "armA_fold" --sort-by "updated" | tee -a kaggle-datasets.txt || true
-          kaggle datasets list -s "armB_fold" --sort-by "updated" | tee -a kaggle-datasets.txt || true
+          set -euo pipefail
+          test -n "${KAGGLE_API_TOKEN:-}" || {
+            echo "::error::KAGGLE_API_TOKEN is not available to this workflow."
+            exit 2
+          }
+          kaggle auth whoami
 
-      - name: Search Kaggle notebooks
+      - name: Search candidate datasets
         run: |
-          set -o pipefail
-          kaggle kernels list -s "RSNA Knee" --sort-by "updated" | tee kaggle-notebooks.txt
+          set +e
+          {
+            echo "=== search: rsna knee arm ==="
+            kaggle datasets list -s "rsna knee arm" --sort-by updated -v
+            echo
+            echo "=== search: armA_fold0.pt ==="
+            kaggle datasets list -s "armA_fold0.pt" --sort-by updated -v
+            echo
+            echo "=== search: armB_fold0.pt ==="
+            kaggle datasets list -s "armB_fold0.pt" --sort-by updated -v
+            echo
+            echo "=== search: tejuuss ==="
+            kaggle datasets list --user tejuuss --sort-by updated -v
+          } 2>&1 | tee kaggle-datasets-search.txt
+          exit 0
 
-      - name: Inspect original repository references
+      - name: Inspect canonical checkpoint dataset
+        id: canonical
+        shell: bash
         run: |
-          grep -RniE 'rsna-knee-arm-ckpts|armA_fold|armB_fold' . | head -200 || true
+          set +e
+          kaggle datasets files tejuuss/rsna-knee-arm-ckpts --page-size 200 -v 2>&1 | tee kaggle-canonical-files.txt
+          rc=${PIPESTATUS[0]}
 
-      - name: Upload discovery logs
+          echo "kaggle datasets files exit code: $rc"
+          grep -E 'armA_fold[0-4]\.pt|armB_fold[0-4]\.pt' kaggle-canonical-files.txt | tee kaggle-canonical-matches.txt || true
+
+          if [ "$(wc -l < kaggle-canonical-matches.txt)" -ge 10 ]; then
+            echo "SOURCE_OK=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "SOURCE_OK=0" >> "$GITHUB_OUTPUT"
+          fi
+
+          exit 0
+
+      - name: Download canonical checkpoints when available
+        if: steps.canonical.outputs.SOURCE_OK == '1'
+        run: |
+          set -euo pipefail
+          rm -rf ckpt_ds
+          mkdir -p ckpt_ds
+          kaggle datasets download tejuuss/rsna-knee-arm-ckpts -p ckpt_ds --unzip -o
+
+          echo "=== checkpoint files ==="
+          find ckpt_ds -maxdepth 2 -type f -printf '%p %s bytes\n' | sort
+
+          echo "=== hashes ==="
+          find ckpt_ds -type f -name 'arm[AB]_fold[0-4].pt' -print0 |
+            sort -z |
+            xargs -0 sha256sum |
+            tee kaggle-checkpoint-sha256.txt
+
+      - name: Write recovery status
+        if: always()
+        run: |
+          {
+            echo "## Kaggle checkpoint discovery"
+            echo
+            if [ -f kaggle-canonical-matches.txt ] && [ "$(wc -l < kaggle-canonical-matches.txt)" -ge 10 ]; then
+              echo "Canonical dataset tejuuss/rsna-knee-arm-ckpts is accessible and contains all 10 expected checkpoints."
+            else
+              echo "Canonical dataset tejuuss/rsna-knee-arm-ckpts was not confirmed to contain all 10 expected checkpoints."
+            fi
+            echo
+            echo "See the raw discovery logs in the workflow artifact."
+          } > kaggle-recovery-status.md
+
+      - name: Upload discovery logs and checkpoints
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kaggle-discovery
+          if-no-files-found: warn
+          retention-days: 7
           path: |
-            kaggle-datasets.txt
-            kaggle-notebooks.txt
+            kaggle-datasets-search.txt
+            kaggle-canonical-files.txt
+            kaggle-canonical-matches.txt
+            kaggle-checkpoint-sha256.txt
+            kaggle-recovery-status.md
+            ckpt_ds/**
