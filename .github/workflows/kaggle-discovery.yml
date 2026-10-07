@@ -33,7 +33,7 @@ jobs:
             echo "::error::KAGGLE_API_TOKEN is not available to this workflow."
             exit 2
           }
-          kaggle datasets list --user tejuuss --sort-by updated -v >/tmp/kaggle_auth_probe.txt
+          kaggle datasets list --user tejuuss --sort-by dateRun -v >/tmp/kaggle_auth_probe.txt
           cat /tmp/kaggle_auth_probe.txt
 
       - name: Search candidate datasets
@@ -41,16 +41,16 @@ jobs:
           set +e
           {
             echo "=== search: rsna knee arm ==="
-            kaggle datasets list -s "rsna knee arm" --sort-by updated -v
+            kaggle datasets list -s "rsna knee arm" --sort-by dateRun -v
             echo
             echo "=== search: armA_fold0.pt ==="
-            kaggle datasets list -s "armA_fold0.pt" --sort-by updated -v
+            kaggle datasets list -s "armA_fold0.pt" --sort-by dateRun -v
             echo
             echo "=== search: armB_fold0.pt ==="
-            kaggle datasets list -s "armB_fold0.pt" --sort-by updated -v
+            kaggle datasets list -s "armB_fold0.pt" --sort-by dateRun -v
             echo
             echo "=== search: tejuuss ==="
-            kaggle datasets list --user tejuuss --sort-by updated -v
+            kaggle datasets list --user tejuuss --sort-by dateRun -v
           } 2>&1 | tee kaggle-datasets-search.txt
           exit 0
 
@@ -76,12 +76,63 @@ jobs:
           set +e
           {
             echo '=== kernels: arma f01234 ==='
-            kaggle kernels list -s 'rsna-knee-arma-f01234' --sort-by updated -v
+            kaggle kernels list -s 'rsna-knee-arma-f01234' --sort-by dateRun -v
             echo '=== kernels: armb f01234 ==='
-            kaggle kernels list -s 'rsna-knee-armb-f01234' --sort-by updated -v
+            kaggle kernels list -s 'rsna-knee-armb-f01234' --sort-by dateRun -v
             echo '=== kernels: arm ckpt ==='
-            kaggle kernels list -s 'rsna-knee arm checkpoint' --sort-by updated -v
+            kaggle kernels list -s 'rsna-knee arm checkpoint' --sort-by dateRun -v
           } 2>&1 | tee kaggle-kernel-search.txt
+
+      - name: Download candidate checkpoint families
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p candidates/champ candidates/llm199
+          kaggle datasets download stevenleehans/rsna-knee-champ-members-only -p candidates/champ --unzip -o
+          kaggle datasets download stevenleehans/rsna-knee-llm199-e30-members -p candidates/llm199 --unzip -o
+          echo "=== candidate files ==="
+          find candidates -type f -name '*.pt' -printf '%p %s bytes\n' | sort
+          echo "=== candidate hashes ==="
+          find candidates -type f -name '*.pt' -print0 | sort -z | xargs -0 sha256sum | tee candidate-checkpoint-sha256.txt
+
+      - name: Inspect candidate checkpoint structures
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet torch
+          python - <<'PY'
+          import glob, json, os, torch
+          rows=[]
+          for p in sorted(glob.glob("candidates/**/*.pt", recursive=True)):
+              obj=torch.load(p, map_location="cpu", weights_only=False)
+              info={"path":p, "type":type(obj).__name__}
+              if isinstance(obj, dict):
+                  info["keys"]=sorted(map(str,obj.keys()))[:40]
+                  sd=obj.get("state_dict", obj.get("model_state_dict", obj))
+                  if isinstance(sd, dict):
+                      keys=list(map(str,sd.keys()))
+                      info["state_dict_key_count"]=len(keys)
+                      info["state_dict_head"]=keys[:30]
+              rows.append(info)
+          print(json.dumps(rows, indent=2))
+          open("candidate-structures.json","w").write(json.dumps(rows, indent=2))
+          PY
+
+      - name: Probe original kernels
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== tejuuss/rsna-knee-armA-f01234 ==='
+            kaggle kernels status tejuuss/rsna-knee-armA-f01234 -v
+            echo '=== tejuuss/rsna-knee-armB-f01234 ==='
+            kaggle kernels status tejuuss/rsna-knee-armB-f01234 -v
+            echo '=== search armA ==='
+            kaggle kernels list -s 'rsna-knee-armA-f01234' --sort-by dateRun -v
+            echo '=== search armB ==='
+            kaggle kernels list -s 'rsna-knee-armB-f01234' --sort-by dateRun -v
+          } 2>&1 | tee kaggle-original-kernels.txt
+          exit 0
 
       - name: Inspect canonical checkpoint dataset
         id: canonical
