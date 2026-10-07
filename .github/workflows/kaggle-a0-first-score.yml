@@ -123,14 +123,48 @@ jobs:
       - name: Submit A0 to competition and wait for public score
         run: |
           set -euo pipefail
+          set +e
           kaggle competitions submit rsna-knee-abnormality-detection \
             -k "$kernel" \
             -v "$kernel_version" \
             -f submission.csv \
             -m "A0 parent baseline recovery — first external calibration score" \
-            | tee out/a0/submission-result.txt
+            2>&1 | tee out/a0/submission-submit.txt
+          submit_rc=${PIPESTATUS[0]}
+          set -e
 
-          ref="$(sed -n 's/^Submission ref:[[:space:]]*//p' out/a0/submission-result.txt | tail -n 1)"
+          echo "submit_rc=$submit_rc" | tee out/a0/submission-submit-rc.txt
+
+          ref="$(sed -n 's/^Submission ref:[[:space:]]*//p' out/a0/submission-submit.txt | tail -n 1 || true)"
+
+          if [ -z "$ref" ]; then
+            echo "No submission ref returned. Recovering latest matching competition submission..."
+            kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/a0/all-submissions.csv
+
+            python - <<'PY'
+          import csv, sys
+          from pathlib import Path
+          p=Path("out/a0/all-submissions.csv")
+          rows=list(csv.DictReader(p.open()))
+          target="A0 parent baseline recovery — first external calibration score"
+          matches=[r for r in rows if r.get("description","").strip()==target]
+          if not matches:
+              print("No matching A0 submission found.")
+              print("Columns:", rows[0].keys() if rows else [])
+              sys.exit(2)
+          def key(r):
+              return r.get("submitted") or r.get("date") or r.get("submissionDate") or ""
+          m=sorted(matches,key=key)[-1]
+          ref=m.get("ref") or m.get("id") or m.get("submissionRef")
+          print("RECOVERED_REF", ref)
+          if not ref:
+              print("Recovered row:",m)
+              sys.exit(3)
+          Path("out/a0/submission-ref.txt").write_text(str(ref)+"\n")
+          PY
+            ref="$(cat out/a0/submission-ref.txt)"
+          fi
+
           test -n "$ref"
           echo "submission_ref=$ref" | tee out/a0/submission-ref.txt
 
