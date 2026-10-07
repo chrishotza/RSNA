@@ -158,6 +158,8 @@ jobs:
           m=sorted(matches,key=key)[-1]
           ref=field(m,"ref","id","submissionRef")
           status=field(m,"status","submissionStatus").upper()
+          if status.startswith("SUBMISSIONSTATUS."):
+              status=status.split(".",1)[1]
           public=field(m,"publicScore","public_score","public")
           private=field(m,"privateScore","private_score","private")
 
