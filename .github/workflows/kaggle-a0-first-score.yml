@@ -1,0 +1,142 @@
+name: Kaggle A0 first score
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research
+
+jobs:
+  a0:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Resolve Kaggle owner
+        id: owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          kaggle kernels list --mine --page-size 5 -v > /tmp/my-kernels.csv
+          cat /tmp/my-kernels.csv
+          owner="$(awk -F',' 'NR>1 && $1 ~ /// {split($1,a,"/"); print a[1]; exit}' /tmp/my-kernels.csv)"
+          if [ -z "$owner" ]; then
+            kaggle datasets list --mine --page-size 5 -v > /tmp/my-datasets.csv
+            cat /tmp/my-datasets.csv
+            owner="$(awk -F',' 'NR>1 && $1 ~ /// {split($1,a,"/"); print a[1]; exit}' /tmp/my-datasets.csv)"
+          fi
+          test -n "$owner"
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+          echo "Kaggle owner resolved: $owner"
+
+      - name: Build A0 baseline notebook
+        env:
+          KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/a0
+          cp notebooks/A0_public_0941/rsna-knee-blend-full.ipynb build/a0/a0-parent-baseline.ipynb
+          cp notebooks/A0_public_0941/kernel-metadata.json build/a0/kernel-metadata.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("build/a0/a0-parent-baseline.ipynb")
+          nb=json.loads(p.read_text())
+          replaced=0
+          for cell in nb["cells"]:
+              src="".join(cell.get("source", []))
+              if "APPENDED ARM BLEND" in src:
+                  cell["source"]=[
+                      "# A0 RECOVERY BASELINE\n",
+                      "# The documented arm checkpoints are currently unavailable from Kaggle.\n",
+                      "# Preserve the untouched parent pipeline so the first external score measures\n",
+                      "# the reproducible 0.940/0.941 reference path rather than a failed blend.\n",
+                      "print('[A0_RECOVERY] Arm checkpoints unavailable; leaving _pipeline_stage.csv unchanged.')\n"
+                  ]
+                  cell["execution_count"]=None
+                  cell["outputs"]=[]
+                  replaced += 1
+          if replaced != 1:
+              raise SystemExit(f"expected exactly one arm-blend cell, found {replaced}")
+          p.write_text(json.dumps(nb, indent=1, ensure_ascii=False))
+          print("patched A0 arm-blend cell:", replaced)
+          PY
+
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path("build/a0/kernel-metadata.json")
+          m=json.loads(p.read_text())
+          owner=os.environ["KAGGLE_OWNER"]
+          m["id"]=f"{owner}/rsna-a0-parent-baseline"
+          m["title"]="RSNA A0 Parent Baseline — Recovery"
+          m["code_file"]="a0-parent-baseline.ipynb"
+          m["is_private"]=True
+          m["enable_gpu"]=True
+          m["enable_internet"]=False
+          p.write_text(json.dumps(m, indent=2))
+          print(m["id"])
+          PY
+
+          cat build/a0/kernel-metadata.json
+
+      - name: Push and run A0 on Kaggle
+        env:
+          KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a0
+          kernel="$KAGGLE_OWNER/rsna-a0-parent-baseline"
+          echo "kernel=$kernel" >> "$GITHUB_ENV"
+
+      - name: Wait for A0 kernel
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 360); do
+            status="$(kaggle kernels status "$kernel" 2>&1 | tail -n 1)"
+            echo "[$i] $status"
+            case "$status" in
+              *"complete"*|*"Complete"*|*"COMPLETE"*) exit 0 ;;
+              *"error"*|*"Error"*|*"ERROR"*|*"failed"*|*"Failed"*|*"FAIL"*) exit 1 ;;
+            esac
+            sleep 60
+          done
+          echo "A0 kernel did not finish within 6 hours"
+          exit 1
+
+      - name: Download A0 submission artifact
+        run: |
+          set -euo pipefail
+          mkdir -p out/a0
+          kaggle kernels files "$kernel" -v --page-size 200 | tee out/a0/kernel-files.csv
+          kaggle kernels output "$kernel" -p out/a0 -o
+          find out/a0 -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
+          test -s out/a0/submission.csv
+
+      - name: Submit A0 to competition and wait for public score
+        run: |
+          set -euo pipefail
+          kaggle competitions submit rsna-knee-abnormality-detection             -f out/a0/submission.csv             -m "A0 parent baseline recovery — first external calibration score"             --wait 0             --poll-interval 60 | tee out/a0/submission-result.txt
+
+      - name: Archive first-score evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a0-first-score
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            out/a0/**
+            build/a0/kernel-metadata.json
