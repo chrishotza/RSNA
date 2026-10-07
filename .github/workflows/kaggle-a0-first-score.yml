@@ -31,9 +31,10 @@ jobs:
           test -n "${KAGGLE_API_TOKEN:-}"
           owner="chrishotza"
           kaggle kernels list --mine --page-size 5 -v | tee /tmp/my-kernels.csv
-          grep -q "^${owner}/" /tmp/my-kernels.csv
+          grep -q "^\${owner}/" /tmp/my-kernels.csv
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "Kaggle owner resolved: $owner"
+
       - name: Build A0 baseline notebook
         env:
           KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
@@ -75,13 +76,14 @@ jobs:
           m=json.loads(p.read_text())
           owner=os.environ["KAGGLE_OWNER"]
           m["id"]=f"{owner}/rsna-a0-parent-baseline"
-          m["title"]="RSNA A0 Parent Baseline — Recovery"
+          m["title"]="rsna-a0-parent-baseline"
           m["code_file"]="a0-parent-baseline.ipynb"
           m["is_private"]=True
           m["enable_gpu"]=True
           m["enable_internet"]=False
           p.write_text(json.dumps(m, indent=2))
           print(m["id"])
+          print(m["title"])
           PY
 
           cat build/a0/kernel-metadata.json
@@ -122,7 +124,11 @@ jobs:
       - name: Submit A0 to competition and wait for public score
         run: |
           set -euo pipefail
-          kaggle competitions submit rsna-knee-abnormality-detection             -f out/a0/submission.csv             -m "A0 parent baseline recovery — first external calibration score"             --wait 0             --poll-interval 60 | tee out/a0/submission-result.txt
+          kaggle competitions submit rsna-knee-abnormality-detection \
+            -f out/a0/submission.csv \
+            -m "A0 parent baseline recovery — first external calibration score" \
+            --wait 0 \
+            --poll-interval 60 | tee out/a0/submission-result.txt
 
       - name: Archive first-score evidence
         if: always()
