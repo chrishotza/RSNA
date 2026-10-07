@@ -93,9 +93,13 @@ jobs:
           KAGGLE_OWNER: ${{ steps.owner.outputs.owner }}
         run: |
           set -euo pipefail
-          kaggle kernels push -p build/a0
+          push_log="$(kaggle kernels push -p build/a0 2>&1 | tee out/kaggle-kernel-push.txt)"
           kernel="$KAGGLE_OWNER/rsna-a0-parent-baseline"
+          kernel_version="$(printf '%s\n' "$push_log" | sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' | tail -n 1)"
+          test -n "$kernel_version"
           echo "kernel=$kernel" >> "$GITHUB_ENV"
+          echo "kernel_version=$kernel_version" >> "$GITHUB_ENV"
+          echo "Kaggle kernel version: $kernel_version"
 
       - name: Wait for A0 kernel
         run: |
@@ -125,7 +129,9 @@ jobs:
         run: |
           set -euo pipefail
           kaggle competitions submit rsna-knee-abnormality-detection \
-            -f out/a0/submission.csv \
+            -k "$kernel" \
+            -v "$kernel_version" \
+            -f submission.csv \
             -m "A0 parent baseline recovery — first external calibration score" \
             | tee out/a0/submission-result.txt
 
