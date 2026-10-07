@@ -127,8 +127,33 @@ jobs:
           kaggle competitions submit rsna-knee-abnormality-detection \
             -f out/a0/submission.csv \
             -m "A0 parent baseline recovery — first external calibration score" \
-            --wait 0 \
-            --poll-interval 60 | tee out/a0/submission-result.txt
+            | tee out/a0/submission-result.txt
+
+          ref="$(sed -n 's/^Submission ref:[[:space:]]*//p' out/a0/submission-result.txt | tail -n 1)"
+          test -n "$ref"
+          echo "submission_ref=$ref" | tee out/a0/submission-ref.txt
+
+          for i in $(seq 1 720); do
+            status="$(kaggle competitions submission "$ref" 2>&1 | tee /tmp/a0-submission-status.txt)"
+            printf '[%03d] %s\n' "$i" "$(printf '%s\n' "$status" | tr '\n' ' ' | cut -c1-500)"
+            printf '%s\n' "$status" > out/a0/submission-status.txt
+
+            if grep -qiE '^Status:[[:space:]]*COMPLETE' /tmp/a0-submission-status.txt; then
+              cp /tmp/a0-submission-status.txt out/a0/submission-result.txt
+              cat /tmp/a0-submission-status.txt
+              exit 0
+            fi
+
+            if grep -qiE '^Status:[[:space:]]*(ERROR|FAILED)' /tmp/a0-submission-status.txt; then
+              cat /tmp/a0-submission-status.txt
+              exit 1
+            fi
+
+            sleep 60
+          done
+
+          echo "A0 submission did not finish scoring within 12 hours"
+          exit 1
 
       - name: Archive first-score evidence
         if: always()
