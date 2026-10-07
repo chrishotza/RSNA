@@ -26,14 +26,15 @@ jobs:
           python -m pip install --upgrade kaggle
           kaggle --version
 
-      - name: Verify Kaggle authentication
+      - name: Verify Kaggle authentication and API access
         run: |
           set -euo pipefail
           test -n "${KAGGLE_API_TOKEN:-}" || {
             echo "::error::KAGGLE_API_TOKEN is not available to this workflow."
             exit 2
           }
-          kaggle auth whoami
+          kaggle datasets list --user tejuuss --sort-by updated -v >/tmp/kaggle_auth_probe.txt
+          cat /tmp/kaggle_auth_probe.txt
 
       - name: Search candidate datasets
         run: |
