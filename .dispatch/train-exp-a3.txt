@@ -1,5 +1,5 @@
 EXP-A3 A3-RANK Kaggle training launch
-forced_retrigger=2026-10-09
-reason=user_requested_visible_fresh_push
+forced_retrigger=2026-10-09-slugfix
+reason=fix_kaggle_409_title_id_slug_mismatch
 kernel=chrishotza/rsna-exp-a3-a3-rank-training
 mode=training-only
