@@ -1,0 +1,33 @@
+name: A6 inspect competition file granularity
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-competition-files.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle
+      - name: List competition files
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6-comp-files
+          kaggle competitions files -c rsna-knee-abnormality-detection --csv > out/a6-comp-files/files.csv
+          echo "rows=$(wc -l < out/a6-comp-files/files.csv)"
+          head -n 30 out/a6-comp-files/files.csv
+          grep -E 'train_series|train\.csv|train_series\.csv' out/a6-comp-files/files.csv | head -n 100 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a6-competition-file-manifest
+          retention-days: 30
+          path: out/a6-comp-files/**
