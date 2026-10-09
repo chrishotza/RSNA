@@ -1,0 +1,142 @@
+=== STATUS ===
+chrishotza/rsna-exp-a2-dsr1 has status "KernelWorkerStatus.ERROR"
+
+=== LOGS ===
+[{"stream_name":"stderr","time":7.584777137,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":7.58481969,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":7.5848263110000005,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":7.584830825,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":8.214338155,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":8.214368849,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":8.214373647,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":8.214377375,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stdout","time":19.851416877,"data":"cuda:0 probe PASS (compute 7.5)\n"}
+,{"stream_name":"stderr","time":19.896797337,"data":"DEBUG: cuda_avail=True, count=2\n"}
+,{"stream_name":"stderr","time":19.89683266,"data":"\n"}
+,{"stream_name":"stderr","time":19.896837391,"data":"DEBUG: cuda_avail=True, count=2\n"}
+,{"stream_name":"stdout","time":19.897726094,"data":"cuda:1 probe PASS (compute 7.5)\n"}
+,{"stream_name":"stdout","time":19.8977657,"data":"devices: ['cuda:0', 'cuda:1']\n"}
+,{"stream_name":"stdout","time":19.897771589,"data":"[startup] imports+GPU preflight: 10.36s\n"}
+,{"stream_name":"stdout","time":19.944095702,"data":"[    0.0s] input root: /kaggle/input/competitions/rsna-knee-abnormality-detection\n"}
+,{"stream_name":"stdout","time":19.944752892,"data":"[startup] competition-root preflight: 0.05s\n"}
+,{"stream_name":"stdout","time":20.132042681,"data":"[    0.2s] memory: 29.5 GB available, 13.3 GB to the cache; sizing for 4407 train + 1322 test studies -\u003e 1 group(s) of 3 = 3 slices per slot\n"}
+,{"stream_name":"stdout","time":20.132810465,"data":"[    0.2s] cache layout: 1 groups x 3 slices = 3 per slot\n"}
+,{"stream_name":"stdout","time":21.045727838,"data":"[phase] {\"a5_without_matching_acquisition\": 0, \"elapsed_seconds\": 1.1465556621551514, \"gpus\": [{\"allocated_bytes\": 0, \"id\": 0, \"reserved_bytes\": 0}, {\"allocated_bytes\": 0, \"id\": 1, \"reserved_bytes\": 0}], \"max_rss_kib\": 1038160, \"memory.current\": \"1409949696\", \"memory.max\": \"32212254720\", \"missing_fluid_flags\": 0, \"stage\": \"input_metadata\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":21.374899698,"data":"[phase] {\"elapsed_seconds\": 1.4753460884094238, \"gpus\": [{\"allocated_bytes\": 0, \"id\": 0, \"reserved_bytes\": 0}, {\"allocated_bytes\": 0, \"id\": 1, \"reserved_bytes\": 0}], \"max_rss_kib\": 1038160, \"memory.current\": \"1414873088\", \"memory.max\": \"32212254720\", \"stage\": \"dinov2\", \"status\": \"START\"}\n"}
+,{"stream_name":"stdout","time":21.395485738,"data":"[    1.5s] weights package: 20 member(s) from /kaggle/input/datasets/pilkwang/rsna-knee-weights; 2 device(s)\n"}
+,{"stream_name":"stdout","time":21.462041922,"data":"[    1.6s] test header pass: 15 series\n"}
+,{"stream_name":"stdout","time":21.462818102,"data":"[    1.6s] decode group 1/1: 336px x 12 slices, crop 130.0 mm -\u003e 20 member(s)\n"}
+,{"stream_name":"stdout","time":21.492751631,"data":"[    1.6s] test laterality: 1 from the tag, 2 from geometry, 0 unresolved; tag and geometry disagree on 0 (0.0% of the tagged)\n"}
+,{"stream_name":"stdout","time":21.493553083,"data":"[    1.6s] test g1: 3 studies, 12 slot-series, 0.02 GiB pixels\n"}
+,{"stream_name":"stdout","time":25.030853829,"data":"[    5.1s] test g1: COMPLETE 12/12; reused ordering for 0 series\n"}
+,{"stream_name":"stdout","time":48.851705271,"data":"[   29.0s] backbone: 12 blocks, last 6 trainable (10.7M params), feature dim 768\n"}
+,{"stream_name":"stdout","time":50.916241739,"data":"[   31.0s] e5427d6c21: fingerprint matches within 2.8e-06\n"}
+,{"stream_name":"stdout","time":52.938320401,"data":"[   33.0s] d47313baef: fingerprint matches within 2.1e-06\n"}
+,{"stream_name":"stdout","time":54.662732806,"data":"[   34.8s] ea3fbf6edf: fingerprint matches within 3.8e-06\n"}
+,{"stream_name":"stdout","time":56.494587959,"data":"[   36.6s] 5f8ba4c5ea: fingerprint matches within 3.3e-06\n"}
+,{"stream_name":"stdout","time":58.429855317,"data":"[   38.5s] 013dc75703: fingerprint matches within 3.3e-06\n"}
+,{"stream_name":"stdout","time":60.146678597,"data":"[   40.2s] 2f7e785e82: fingerprint matches within 1.1e-06\n"}
+,{"stream_name":"stdout","time":61.834949742,"data":"[   41.9s] 8baecb9d1b: fingerprint matches within 2.4e-06\n"}
+,{"stream_name":"stdout","time":63.984415366,"data":"[   44.1s] 44bc3c6f14: fingerprint matches within 3.8e-06\n"}
+,{"stream_name":"stdout","time":65.87544138,"data":"[   46.0s] 44128e3ff3: fingerprint matches within 4.3e-06\n"}
+,{"stream_name":"stdout","time":67.815068573,"data":"[   47.9s] 84079fe8cb: fingerprint matches within 1.2e-06\n"}
+,{"stream_name":"stdout","time":69.698804197,"data":"[   49.8s] ed427aa10a: fingerprint matches within 4.6e-06\n"}
+,{"stream_name":"stdout","time":72.031034023,"data":"[   52.1s] 2dce50ebd9: fingerprint matches within 3.8e-06\n"}
+,{"stream_name":"stdout","time":74.285120853,"data":"[   54.4s] 3d1f4c48fc: fingerprint matches within 1.3e-06\n"}
+,{"stream_name":"stdout","time":76.138168724,"data":"[   56.2s] 91f171fe6f: fingerprint matches within 2.6e-06\n"}
+,{"stream_name":"stdout","time":78.328414726,"data":"[   58.4s] 8476b29285: fingerprint matches within 4.4e-06\n"}
+,{"stream_name":"stdout","time":80.19290845,"data":"[   60.3s] 72081758ce: fingerprint matches within 2.9e-06\n"}
+,{"stream_name":"stdout","time":81.916904434,"data":"[   62.0s] 7f8321affc: fingerprint matches within 2.9e-06\n"}
+,{"stream_name":"stdout","time":83.624336001,"data":"[   63.7s] 1e553ba481: fingerprint matches within 1.7e-06\n"}
+,{"stream_name":"stdout","time":85.537045461,"data":"[   65.6s] b7c37cc80e: fingerprint matches within 1.1e-06\n"}
+,{"stream_name":"stdout","time":87.18885569,"data":"[   67.3s] f335c812fe: fingerprint matches within 2.9e-06\n"}
+,{"stream_name":"stdout","time":90.984337996,"data":"[   71.1s] shared first 6 DINOv2 blocks for 20 members; original views computed once per 2 device(s)\n"}
+,{"stream_name":"stdout","time":90.987481787,"data":"[   71.1s]   banked e5427d6c21 fold 2 (10 window(s); 1 member(s)\n"}
+,{"stream_name":"stdout","time":90.989570069,"data":"[   71.1s]   banked d47313baef fold 2 (10 window(s); 2 member(s)\n"}
+,{"stream_name":"stdout","time":90.991765334,"data":"[   71.1s]   banked ea3fbf6edf fold 2 (10 window(s); 3 member(s)\n"}
+,{"stream_name":"stdout","time":90.993655234,"data":"[   71.1s]   banked 5f8ba4c5ea fold 2 (10 window(s); 4 member(s)\n"}
+,{"stream_name":"stdout","time":90.995562085,"data":"[   71.1s]   banked 013dc75703 fold 4 (10 window(s); 5 member(s)\n"}
+,{"stream_name":"stdout","time":90.997496367,"data":"[   71.1s]   banked 2f7e785e82 fold 4 (10 window(s); 6 member(s)\n"}
+,{"stream_name":"stdout","time":90.999624813,"data":"[   71.1s]   banked 8baecb9d1b fold 4 (10 window(s); 7 member(s)\n"}
+,{"stream_name":"stdout","time":91.001539278,"data":"[   71.1s]   banked 44bc3c6f14 fold 0 (10 window(s); 8 member(s)\n"}
+,{"stream_name":"stdout","time":91.003647947,"data":"[   71.1s]   banked 44128e3ff3 fold 0 (10 window(s); 9 member(s)\n"}
+,{"stream_name":"stdout","time":91.00552896,"data":"[   71.1s]   banked 84079fe8cb fold 3 (10 window(s); 10 member(s)\n"}
+,{"stream_name":"stdout","time":91.007504002,"data":"[   71.1s]   banked ed427aa10a fold 0 (10 window(s); 11 member(s)\n"}
+,{"stream_name":"stdout","time":91.00922919,"data":"[   71.1s]   banked 2dce50ebd9 fold 0 (10 window(s); 12 member(s)\n"}
+,{"stream_name":"stdout","time":91.011011549,"data":"[   71.1s]   banked 3d1f4c48fc fold 4 (10 window(s); 13 member(s)\n"}
+,{"stream_name":"stdout","time":91.012897221,"data":"[   71.1s]   banked 91f171fe6f fold 1 (10 window(s); 14 member(s)\n"}
+,{"stream_name":"stdout","time":91.014554058,"data":"[   71.1s]   banked 8476b29285 fold 1 (10 window(s); 15 member(s)\n"}
+,{"stream_name":"stdout","time":91.016495334,"data":"[   71.1s]   banked 72081758ce fold 3 (10 window(s); 16 member(s)\n"}
+,{"stream_name":"stdout","time":91.018684923,"data":"[   71.1s]   banked 7f8321affc fold 3 (10 window(s); 17 member(s)\n"}
+,{"stream_name":"stdout","time":91.020616287,"data":"[   71.1s]   banked 1e553ba481 fold 1 (10 window(s); 18 member(s)\n"}
+,{"stream_name":"stdout","time":91.022559273,"data":"[   71.1s]   banked b7c37cc80e fold 3 (10 window(s); 19 member(s)\n"}
+,{"stream_name":"stdout","time":91.260191188,"data":"[   71.1s]   banked f335c812fe fold 1 (10 window(s); 20 member(s)\n"}
+,{"stream_name":"stdout","time":91.260978115,"data":"[   71.4s] DINOv2 fail-closed gate PASS: 20/20 fingerprints and members\n"}
+,{"stream_name":"stdout","time":91.286991861,"data":"[   71.4s] submission.csv = exact no-jitter public-frontier rank mean of 20 member(s); (3, 13)\n"}
+,{"stream_name":"stdout","time":91.291225285,"data":"[   71.4s] done\n"}
+,{"stream_name":"stdout","time":91.526008608,"data":"[phase] {\"elapsed_seconds\": 71.62691378593445, \"gpus\": [{\"allocated_bytes\": 9568256, \"id\": 0, \"reserved_bytes\": 23068672}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 195035136}], \"max_rss_kib\": 2777220, \"memory.current\": \"5836152832\", \"memory.max\": \"32212254720\", \"stage\": \"dinov2\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":91.557877601,"data":"[phase] {\"elapsed_seconds\": 71.65807437896729, \"gpus\": [{\"allocated_bytes\": 9568256, \"id\": 0, \"reserved_bytes\": 23068672}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 195035136}], \"max_rss_kib\": 2777220, \"memory.current\": \"5836341248\", \"memory.max\": \"32212254720\", \"stage\": \"a5\", \"status\": \"START\"}\n"}
+,{"stream_name":"stdout","time":94.648920015,"data":"series root: /kaggle/input/competitions/rsna-knee-abnormality-detection/test_series\n"}
+,{"stream_name":"stdout","time":94.648947379,"data":"3 test studies, 3 with series metadata\n"}
+,{"stream_name":"stdout","time":96.546215985,"data":"A5 strict-loaded m_f0.pt; all encoder and head tensors present\n"}
+,{"stream_name":"stdout","time":98.152178241,"data":"A5 strict-loaded m_f1.pt; all encoder and head tensors present\n"}
+,{"stream_name":"stdout","time":99.722615497,"data":"A5 strict-loaded m_f2.pt; all encoder and head tensors present\n"}
+,{"stream_name":"stdout","time":101.234328559,"data":"A5 strict-loaded m_f3.pt; all encoder and head tensors present\n"}
+,{"stream_name":"stdout","time":102.645015988,"data":"A5 strict-loaded m_f4.pt; all encoder and head tensors present\n"}
+,{"stream_name":"stdout","time":103.610693654,"data":"device cuda | amp bfloat16 (on=True) | workers 4 | chunk 48 | micro 8\n"}
+,{"stream_name":"stdout","time":107.441747331,"data":"  3/3  0.1m  eta 0.0m\n"}
+,{"stream_name":"stdout","time":107.727652578,"data":"\n"}
+,{"stream_name":"stdout","time":107.727730091,"data":"inference done in 0.1 min\n"}
+,{"stream_name":"stdout","time":107.79757768,"data":"[phase] {\"absent\": 0, \"applicable\": 3, \"elapsed_seconds\": 87.89847183227539, \"gpus\": [{\"allocated_bytes\": 9568256, \"id\": 0, \"reserved_bytes\": 23068672}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 3447440, \"memory.current\": \"6924529664\", \"memory.max\": \"32212254720\", \"stage\": \"a5\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":107.914751245,"data":"[phase] {\"elapsed_seconds\": 88.01631355285645, \"gpus\": [{\"allocated_bytes\": 9568256, \"id\": 0, \"reserved_bytes\": 23068672}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 3447440, \"memory.current\": \"6924406784\", \"memory.max\": \"32212254720\", \"stage\": \"radimagenet\", \"status\": \"START\"}\n"}
+,{"stream_name":"stdout","time":111.811910453,"data":"[   91.9s] rad commonlaterality: 1 from the tag, 2 from geometry, 0 unresolved; tag and geometry disagree on 0 (0.0% of the tagged)\n"}
+,{"stream_name":"stdout","time":114.768410192,"data":"[   94.9s] rad_e10: 3 studies, 8 slot-series, 0.00 GiB pixels\n"}
+,{"stream_name":"stdout","time":115.913178528,"data":"[   96.0s] rad_e10: COMPLETE 8/8; reused ordering for 0 series\n"}
+,{"stream_name":"stdout","time":115.930885023,"data":"[   96.0s] rad_e13: 3 studies, 11 slot-series, 0.00 GiB pixels\n"}
+,{"stream_name":"stdout","time":116.632537832,"data":"[   96.7s] rad_e13: COMPLETE 11/11; reused ordering for 8 series\n"}
+,{"stream_name":"stdout","time":116.647095547,"data":"[   96.7s] rad_legacy_second: 3 studies, 7 slot-series, 0.00 GiB pixels\n"}
+,{"stream_name":"stdout","time":117.105545551,"data":"[   97.2s] rad_legacy_second: COMPLETE 7/7; reused ordering for 5 series\n"}
+,{"stream_name":"stdout","time":117.581828506,"data":"[Rad-dual5] BTKD reference Rad/calibrator complete; unused alternate-head branch removed\n"}
+,{"stream_name":"stdout","time":117.583705598,"data":"[phase] {\"elapsed_seconds\": 97.68435549736023, \"gpus\": [{\"allocated_bytes\": 9568256, \"id\": 0, \"reserved_bytes\": 23068672}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 3561288, \"memory.current\": \"7580332032\", \"memory.max\": \"32212254720\", \"stage\": \"radimagenet\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":117.705571189,"data":"[phase] {\"elapsed_seconds\": 97.80688691139221, \"gpus\": [{\"allocated_bytes\": 9568256, \"id\": 0, \"reserved_bytes\": 23068672}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 3561288, \"memory.current\": \"7580508160\", \"memory.max\": \"32212254720\", \"stage\": \"public_raptor\", \"status\": \"START\"}\n"}
+,{"stream_name":"stdout","time":117.722785746,"data":"[raptor-fast] 3 studies; balanced arm groups cuda:0=[0,2], cuda:1=[1,3]\n"}
+,{"stream_name":"stdout","time":150.153203165,"data":"[raptor-fast] wrote /kaggle/working/_raptor.csv; elapsed 32.4s\n"}
+,{"stream_name":"stdout","time":150.154588734,"data":"[phase] {\"elapsed_seconds\": 130.2422387599945, \"gpus\": [{\"allocated_bytes\": 19136512, \"id\": 0, \"reserved_bytes\": 62914560}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 6274624, \"memory.current\": \"10230923264\", \"memory.max\": \"32212254720\", \"stage\": \"public_raptor\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":152.527507048,"data":"[phase] {\"elapsed_seconds\": 132.62863302230835, \"gpus\": [{\"allocated_bytes\": 19136512, \"id\": 0, \"reserved_bytes\": 62914560}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 6274624, \"memory.current\": \"10134269952\", \"memory.max\": \"32212254720\", \"stage\": \"residual_coat\", \"status\": \"START\"}\n"}
+,{"stream_name":"stdout","time":197.867033266,"data":"[phase] {\"elapsed_seconds\": 177.95795226097107, \"gpus\": [{\"allocated_bytes\": 19136512, \"id\": 0, \"reserved_bytes\": 62914560}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 6274624, \"memory.current\": \"11438772224\", \"memory.max\": \"32212254720\", \"ok\": true, \"stage\": \"residual_coat\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":197.86830314,"data":"[phase] {\"elapsed_seconds\": 177.96389865875244, \"gpus\": [{\"allocated_bytes\": 19136512, \"id\": 0, \"reserved_bytes\": 62914560}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 6274624, \"memory.current\": \"11438718976\", \"memory.max\": \"32212254720\", \"stage\": \"d4\", \"status\": \"START\"}\n"}
+,{"stream_name":"stdout","time":233.433697426,"data":"[phase] {\"elapsed_seconds\": 213.5226812362671, \"gpus\": [{\"allocated_bytes\": 19136512, \"id\": 0, \"reserved_bytes\": 62914560}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 6274624, \"memory.current\": \"11770486784\", \"memory.max\": \"32212254720\", \"ok\": true, \"stage\": \"d4\", \"status\": \"COMPLETE\"}\n"}
+,{"stream_name":"stdout","time":233.454534971,"data":"[coat-arm] residual top3 / D4 SWA3 equal rank family; BTKD32 no-inner-rerank; 3 studies\n"}
+,{"stream_name":"stdout","time":233.46091025,"data":"[phase] {\"elapsed_seconds\": 213.56177592277527, \"error\": \"name '_j' is not defined\", \"error_type\": \"NameError\", \"gpus\": [{\"allocated_bytes\": 19136512, \"id\": 0, \"reserved_bytes\": 62914560}, {\"allocated_bytes\": 9568256, \"id\": 1, \"reserved_bytes\": 23068672}], \"max_rss_kib\": 6274624, \"memory.current\": \"11770347520\", \"memory.max\": \"32212254720\", \"stage\": \"d4\", \"status\": \"FAILED\"}\n"}
+,{"stream_name":"stderr","time":236.907912862,"data":"Traceback (most recent call last):\n"}
+,{"stream_name":"stderr","time":236.908497689,"data":"  File \"\u003cstring\u003e\", line 1, in \u003cmodule\u003e\n"}
+,{"stream_name":"stderr","time":236.908516803,"data":"    import sys;import papermill as pm;pm.execute_notebook(\"__notebook__.ipynb\",\"__notebook__.ipynb\",progress_bar=False,log_output=True,stdout_file=sys.stdout,stderr_file=sys.stderr,allow_errors=False,timeout=43200)\n"}
+,{"stream_name":"stderr","time":236.908520749,"data":"                                      ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"}
+,{"stream_name":"stderr","time":236.908523985,"data":"  File \"/usr/local/lib/python3.13/dist-packages/papermill/execute.py\", line 131, in execute_notebook\n"}
+,{"stream_name":"stderr","time":236.908527147,"data":"    raise_for_execution_errors(nb, output_path)\n"}
+,{"stream_name":"stderr","time":236.908529963,"data":"    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\n"}
+,{"stream_name":"stderr","time":236.908532679,"data":"  File \"/usr/local/lib/python3.13/dist-packages/papermill/execute.py\", line 251, in raise_for_execution_errors\n"}
+,{"stream_name":"stderr","time":236.908535537,"data":"    raise error\n"}
+,{"stream_name":"stderr","time":236.908538291,"data":"papermill.exceptions.PapermillExecutionError: \n"}
+,{"stream_name":"stderr","time":236.90854144,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":236.90854425,"data":"Exception encountered at \"In [22]\":\n"}
+,{"stream_name":"stderr","time":236.908547014,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":236.908549849,"data":"NameError                                 Traceback (most recent call last)\n"}
+,{"stream_name":"stderr","time":236.908574324,"data":"/tmp/ipykernel_23/25285824.py in \u003ccell line: 0\u003e()\n"}
+,{"stream_name":"stderr","time":236.908579372,"data":"    840         raise RuntimeError(f'EXP-A2 requires complete specialist artifact: {_required}')\n"}
+,{"stream_name":"stderr","time":236.908583412,"data":"    841 \n"}
+,{"stream_name":"stderr","time":236.908587721,"data":"--\u003e 842 _ke_receipt = _j.loads(_ke_coat_receipt_path.read_text())\n"}
+,{"stream_name":"stderr","time":236.908591693,"data":"    843 _ke_required_members = {'resgated_top3', 'd4_swa3'}\n"}
+,{"stream_name":"stderr","time":236.908595332,"data":"    844 if set(_ke_receipt.get('members', [])) != _ke_required_members:\n"}
+,{"stream_name":"stderr","time":236.908598712,"data":"\n"}
+,{"stream_name":"stderr","time":236.908601869,"data":"NameError: name '_j' is not defined\n"}
+,{"stream_name":"stderr","time":236.908605087,"data":"\n"}
+,{"stream_name":"stderr","time":239.098567999,"data":"/usr/local/lib/python3.13/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":239.098612613,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":239.264531878,"data":"/usr/local/lib/python3.13/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":239.264562395,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":240.038281475,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
+,{"stream_name":"stderr","time":240.142927348,"data":"[NbConvertApp] Writing 304279 bytes to __notebook__.ipynb\n"}
+,{"stream_name":"stderr","time":242.724002202,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
+,{"stream_name":"stderr","time":244.22964361,"data":"[NbConvertApp] Writing 1451564 bytes to __results__.html\n"}
+]
