@@ -1,0 +1,144 @@
+name: Kaggle EXP-A4 ORTHO dry run
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/run-exp-a4.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a4-ortho
+  cancel-in-progress: true
+
+jobs:
+  a4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: chrishotza/rsna-exp-a4-ortho
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Pull exact public sources
+        run: |
+          set -euo pipefail
+          mkdir -p build/a4/sources/raptor build/a4/sources/v36 out/a4
+          kaggle kernels pull dreaddevelopment/knee-mri-twelve-findings-from-a-single-model             -p build/a4/sources/raptor -m
+          kaggle kernels pull hdhsjdjd/rsna-knee-raptor-v36-w060             -p build/a4/sources/v36 -m
+
+      - name: Build A4 notebook
+        run: |
+          set -euo pipefail
+          python scripts/build_a4_ortho.py             --raptor-root build/a4/sources/raptor             --v36-root build/a4/sources/v36             --output build/a4/a4-ortho.ipynb
+
+          cat > build/a4/kernel-metadata.json <<'JSON'
+          {
+            "id": "chrishotza/rsna-exp-a4-ortho",
+            "title": "rsna-exp-a4-ortho",
+            "code_file": "a4-ortho.ipynb",
+            "language": "python",
+            "kernel_type": "notebook",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": false,
+            "keywords": ["gpu","health","ensemble"],
+            "dataset_sources": [
+              "dreaddevelopment/raptor-knee-widedense",
+              "tim9510019/rsna-knee-v34-master-models"
+            ],
+            "competition_sources": [
+              "rsna-knee-abnormality-detection"
+            ],
+            "model_sources": [],
+            "machine_shape": "NvidiaTeslaT4"
+          }
+          JSON
+
+      - name: Static preflight
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          nb=json.loads(Path("build/a4/a4-ortho.ipynb").read_text())
+          code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          compile(code,"a4-ortho.ipynb","exec")
+          required=[
+            "raptor_ft_coatnet_v4_full.pt",
+            "loop5_v3_track5a_fold0.pth",
+            "best_dinov3_finetuned_384.pth",
+            "A4-ORTHO",
+            "_a4_route",
+          ]
+          missing=[x for x in required if x not in code]
+          if missing: raise SystemExit(f"A4 preflight missing {missing}")
+          print("A4 static preflight OK; bytes",len(code))
+          PY
+
+      - name: Push A4 dry-run kernel
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a4 2>&1 | tee out/a4/kernel-push.txt
+          version="$(grep -Eo 'Kernel version [0-9]+' out/a4/kernel-push.txt | grep -Eo '[0-9]+' | tail -n 1)"
+          test -n "$version" || { echo "Cannot parse A4 kernel version"; exit 1; }
+          echo "$version" > out/a4/kernel-version.txt
+          echo "A4 VERSION $version"
+
+      - name: Wait for A4 completion
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 180); do
+            status="$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)"
+            echo "[$i] $status"
+            printf '%s\n' "$status" > out/a4/status-latest.txt
+            case "$status" in
+              *"KernelWorkerStatus.COMPLETE"*) exit 0 ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*) exit 1 ;;
+            esac
+            sleep 60
+          done
+          exit 1
+
+      - name: Download and validate A4 outputs
+        run: |
+          set -euo pipefail
+          mkdir -p out/a4/output
+          kaggle kernels output "$KERNEL_ID" -p out/a4/output -o
+          python - <<'PY'
+          from pathlib import Path
+          import json,pandas as pd,numpy as np
+          out=Path("out/a4/output")
+          subs=list(out.rglob("submission.csv"))
+          receipts=list(out.rglob("a4_ortho_receipt.json"))
+          if len(subs)!=1: raise SystemExit(f"expected one submission.csv, got {subs}")
+          if len(receipts)!=1: raise SystemExit(f"expected one A4 receipt, got {receipts}")
+          df=pd.read_csv(subs[0])
+          if df.shape[1]!=13: raise SystemExit(f"bad A4 columns {df.shape}")
+          a=df.iloc[:,1:].to_numpy(float)
+          if not np.isfinite(a).all(): raise SystemExit("A4 non-finite")
+          if ((a<0)|(a>1)).any(): raise SystemExit("A4 outside [0,1]")
+          receipt=json.loads(receipts[0].read_text())
+          print("A4 OUTPUT VERIFIED")
+          print(json.dumps(receipt,indent=2))
+          PY
+
+      - name: Archive A4 dry-run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a4-ortho-dry-run
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/a4/**
