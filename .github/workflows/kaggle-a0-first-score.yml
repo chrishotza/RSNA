@@ -85,24 +85,55 @@ jobs:
               print("DESCRIPTION",item["description"])
           PY
 
-      - name: Query every existing A0 submission once
+      - name: Report current status and public score for every existing A0 ref
         run: |
           set -euo pipefail
-          mapfile -t refs < out/a0/a0-refs.txt
-          test "${#refs[@]}" -gt 0
-          : > out/a0/final-score-summary.txt
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
 
-          for ref in "${refs[@]}"; do
-            outfile="out/a0/status-${ref}.txt"
-            set +e
-            kaggle competitions submission "$ref" > "$outfile" 2>&1
-            rc=$?
-            set -e
-            echo "=== ref=$ref cli_rc=$rc ===" | tee -a out/a0/final-score-summary.txt
-            cat "$outfile" | tee -a out/a0/final-score-summary.txt
-          done
+          data=list(csv.DictReader(Path("out/a0/all-submissions.csv").open()))
+          target="A0 parent baseline recovery — first external calibration score"
 
-          echo "Audit complete. No kernel push and no new competition submission were performed."
+          def field(row,*names):
+              low={str(k).lower(): v for k,v in row.items()}
+              for name in names:
+                  value=low.get(name.lower())
+                  if value is not None and str(value).strip():
+                      return str(value).strip()
+              return ""
+
+          matches=[]
+          for row in data:
+              desc=field(row,"description","title","message")
+              if target in desc:
+                  matches.append({
+                      "ref":field(row,"ref","id","submissionref"),
+                      "date":field(row,"date","submitted","submissiondate"),
+                      "status":field(row,"status","submissionstatus"),
+                      "public_score":field(row,"publicScore","public_score"),
+                      "private_score":field(row,"privateScore","private_score"),
+                      "description":desc,
+                  })
+
+          if not matches:
+              raise SystemExit("No A0 submissions found in current Kaggle history.")
+
+          summary=[]
+          for item in matches:
+              line=(f"REF={item['ref']} | STATUS={item['status']} | "
+                    f"PUBLIC_SCORE={item['public_score'] or 'not available'} | "
+                    f"PRIVATE_SCORE={item['private_score'] or 'not available'} | DATE={item['date']}")
+              print(line)
+              summary.append(line)
+
+          Path("out/a0/a0-current-status.json").write_text(
+              json.dumps(matches,indent=2,ensure_ascii=False)
+          )
+          Path("out/a0/final-score-summary.txt").write_text("\n".join(summary)+"\n")
+          print("READ-ONLY AUDIT COMPLETE; no notebook runs or competition submissions created.")
+          PY
+
       - name: Archive A0 score audit
         if: always()
         uses: actions/upload-artifact@v4
