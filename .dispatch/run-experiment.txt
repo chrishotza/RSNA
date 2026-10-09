@@ -1,1 +1,1 @@
-PAUSED. EXP-A1 ref 56988112 is in flight. Do not push or submit another experiment until its score is recorded and the queue is set to READY intentionally.
+RUN EXPERIMENT EXP-A2 DSR-1. Queue must be READY. Save notebook with --no-run, submit exactly once, then recover the submission ref from history. Never duplicate-submit.
