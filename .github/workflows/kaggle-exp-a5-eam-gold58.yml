@@ -1,0 +1,268 @@
+name: A5 EAM gold58 validation
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/run-a5-eam-gold58.txt
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      SOURCE_KERNEL: goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944
+      KERNEL_ID: chrishotza/rsna-exp-a5-eam-gold58
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+
+      - name: Pull and patch reader notebook
+        run: |
+          set -euo pipefail
+          mkdir -p build/a5-eam out/a5-eam
+          kaggle kernels pull "$SOURCE_KERNEL" -p build/a5-eam -m
+          cat > /tmp/patch.py <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path("build/a5-eam")
+          nbp=next(root.glob("*.ipynb"))
+          nb=json.loads(nbp.read_text())
+          replaced=0
+          for c in nb["cells"]:
+              if c.get("cell_type")!="code":
+                  continue
+              src="".join(c.get("source",[]))
+              if "RUN_STACK = True" in src:
+                  src=src.replace("RUN_STACK = True","RUN_STACK = False")
+                  c["source"]=src.splitlines(keepends=True)
+                  replaced+=1
+          if replaced<1:
+              raise SystemExit("RUN_STACK assignment not found")
+
+          eval_code=r'''
+          # === A5-EAM: inference-time acquisition marginalization on gold58 ===
+          import os, sys, glob, json, hashlib, math, gc
+          from pathlib import Path
+          import numpy as np
+          import pandas as pd
+          import torch
+          from sklearn.metrics import roc_auc_score
+
+          sys.path.insert(0,"/kaggle/working/own_src")
+          import infer as _inf
+          import knee as _knee
+          import preprocess as _prep
+
+          LABELS=list(_knee.LABELS)
+
+          def _find(name):
+              for pat in ["/kaggle/input/*/","/kaggle/input/*/*/","/kaggle/input/*/*/*/"]:
+                  for d in sorted(glob.glob(pat)):
+                      if os.path.exists(os.path.join(d,name)):
+                          return d.rstrip("/")
+              raise FileNotFoundError(name)
+
+          DATA=_find("train_series.csv")
+          ASSETS=_find("cnxt_v0_fold0.pt")
+          CKPTS=sorted(glob.glob(ASSETS+"/cnxt_v0_fold*.pt"))
+          if len(CKPTS)<2:
+              raise RuntimeError(f"expected multi-fold reader checkpoints, got {CKPTS}")
+
+          train=pd.read_csv(DATA+"/train.csv",dtype={"StudyInstanceUID":str})
+          gold=train.dropna(subset=LABELS).copy()
+          if len(gold)!=58:
+              raise RuntimeError(f"gold count drift: {len(gold)}")
+          studies=gold.StudyInstanceUID.astype(str).tolist()
+          truth=gold.set_index("StudyInstanceUID").loc[studies,LABELS].to_numpy(float)
+
+          se=pd.read_csv(DATA+"/train_series.csv",dtype={"StudyInstanceUID":str,"SeriesInstanceUID":str})
+          se=se[se.StudyInstanceUID.isin(set(studies))].copy()
+          root=DATA+"/train_series"
+          n_files={}
+          for st,sr in zip(se.StudyInstanceUID,se.SeriesInstanceUID):
+              d=f"{root}/{st}/{sr}"
+              n_files[sr]=min(len(os.listdir(d)),_prep.MAX_SLICES) if os.path.isdir(d) else 0
+          table=_knee.build_study_table(se,n_files)
+
+          def _stable_int(s):
+              return int(hashlib.sha256(s.encode()).hexdigest()[:16],16)
+
+          def _centres(n,k,mode,phase=0.5):
+              if mode=="original":
+                  return _knee.window_centres(n,k,False)
+              a,b=max(1.0,0.04*(n-1)),min(n-2.0,0.96*(n-1))
+              if b<a: a=b=(n-1)/2
+              edges=np.linspace(a,b,k+1)
+              c=edges[:-1]+float(phase)*(edges[1:]-edges[:-1])
+              return np.clip(np.round(c).astype(int),1,max(1,n-2))
+
+          class VariantDataset(torch.utils.data.Dataset):
+              def __init__(self, studies, realization, mode, phase):
+                  self.studies=list(studies)
+                  self.realization=int(realization)
+                  self.mode=mode
+                  self.phase=float(phase)
+              def __len__(self): return len(self.studies)
+              def __getitem__(self,i):
+                  st=self.studies[i]
+                  slots=table.get(st,[[] for _ in range(_knee.N_SLOTS)])
+                  x=np.zeros((_knee.N_SLOTS,12,3,_prep.SIZE,_prep.SIZE),np.uint8)
+                  mask=np.zeros(_knee.N_SLOTS,bool)
+                  pos=np.zeros((_knee.N_SLOTS,12),np.float32)
+                  for s,cands in enumerate(slots):
+                      if not cands: continue
+                      if self.mode=="original":
+                          idx=0
+                      elif self.mode=="series":
+                          idx=_stable_int(f"{st}|{s}|{self.realization}")%len(cands)
+                      else:
+                          idx=0
+                      sr=cands[idx]
+                      try:
+                          vol,_=_prep.load_series(f"{root}/{st}/{sr}")
+                      except Exception:
+                          continue
+                      n=len(vol)
+                      if n<3: continue
+                      c=_centres(n,12,"original" if self.mode=="original" else "phase",self.phase)
+                      x[s]=np.stack([vol[np.clip([j-1,j,j+1],0,n-1)] for j in c])
+                      mask[s],pos[s]=True,c/max(n-1,1)
+                  return torch.from_numpy(x),torch.from_numpy(mask),torch.from_numpy(pos)
+
+          models=_inf.load_models(CKPTS)
+          @torch.no_grad()
+          def predict(realization=0,mode="original",phase=0.5):
+              ds=VariantDataset(studies,realization,mode,phase)
+              dl=torch.utils.data.DataLoader(ds,batch_size=4,shuffle=False,num_workers=4,pin_memory=True)
+              rows=[]
+              for x,mask,pos in dl:
+                  x,mask,pos=x.cuda(non_blocking=True),mask.cuda(),pos.cuda()
+                  with torch.autocast("cuda",dtype=torch.float16):
+                      p=torch.stack([m(x,mask,pos,res=res).float().sigmoid() for m,res in models]).mean(0)
+                  rows.append(p.cpu().numpy())
+              a=np.vstack(rows)
+              if a.shape!=(58,12) or not np.isfinite(a).all():
+                  raise RuntimeError(f"prediction drift {a.shape}")
+              return a
+
+          def aucs(pred):
+              vals=[]
+              for j in range(12):
+                  y=truth[:,j]
+                  vals.append(float(roc_auc_score(y,pred[:,j])) if len(np.unique(y))==2 else float("nan"))
+              return vals,float(np.nanmean(vals))
+
+          predictions={}
+          predictions["original"]=predict(mode="original")
+          predictions["midgrid"]=predict(mode="grid",phase=.5)
+
+          grid_parts=[predict(mode="grid",phase=q) for q in (.2,.5,.8)]
+          predictions["grid3"]=np.mean(grid_parts,axis=0)
+
+          series_parts=[predict(realization=r,mode="series",phase=.5) for r in range(4)]
+          predictions["series4"]=np.mean(series_parts,axis=0)
+
+          eam_parts=[]
+          for r in range(4):
+              for q in (.2,.5,.8):
+                  eam_parts.append(predict(realization=r,mode="series",phase=q))
+          stack=np.stack(eam_parts,axis=0)
+          predictions["eam12"]=stack.mean(0)
+          uncertainty=stack.std(0)
+
+          report={"gold_count":58,"checkpoint_count":len(CKPTS),"variants":{}}
+          for name,p in predictions.items():
+              per,macro=aucs(p)
+              report["variants"][name]={"macro_auc":macro,"per_target_auc":dict(zip(LABELS,per))}
+          report["eam12_uncertainty"]={
+              "mean_std_by_target":dict(zip(LABELS,uncertainty.mean(0).tolist())),
+              "overall_mean_std":float(uncertainty.mean())
+          }
+          # Pairwise bootstrap difference EAM12 - original, study-level resampling.
+          rng=np.random.default_rng(20261009)
+          diffs=[]
+          for _ in range(2000):
+              idx=rng.integers(0,58,58)
+              vals=[]
+              for pred in (predictions["original"],predictions["eam12"]):
+                  aa=[]
+                  for j in range(12):
+                      y=truth[idx,j]
+                      if len(np.unique(y))<2: continue
+                      aa.append(roc_auc_score(y,pred[idx,j]))
+                  vals.append(np.mean(aa) if aa else np.nan)
+              if np.isfinite(vals).all(): diffs.append(vals[1]-vals[0])
+          if diffs:
+              report["bootstrap_eam12_minus_original"]={
+                  "mean":float(np.mean(diffs)),
+                  "p05":float(np.percentile(diffs,5)),
+                  "p50":float(np.percentile(diffs,50)),
+                  "p95":float(np.percentile(diffs,95)),
+                  "p_gt_0":float(np.mean(np.asarray(diffs)>0))
+              }
+          Path("/kaggle/working/a5_eam_gold58.json").write_text(json.dumps(report,indent=2))
+          np.savez_compressed("/kaggle/working/a5_eam_gold58_predictions.npz",
+                              uids=np.asarray(studies),
+                              truth=truth,
+                              original=predictions["original"],
+                              midgrid=predictions["midgrid"],
+                              grid3=predictions["grid3"],
+                              series4=predictions["series4"],
+                              eam12=predictions["eam12"],
+                              uncertainty=uncertainty)
+          print("A5_EAM_GOLD58")
+          print(json.dumps(report,indent=2))
+          '''
+          nb["cells"].append({
+              "cell_type":"code","execution_count":None,"metadata":{},"outputs":[],
+              "source":eval_code.splitlines(keepends=True)
+          })
+          nbp.write_text(json.dumps(nb))
+          meta=Path("build/a5-eam/kernel-metadata.json")
+          m=json.loads(meta.read_text())
+          m["id"]="chrishotza/rsna-exp-a5-eam-gold58"
+          m["title"]="rsna-exp-a5-eam-gold58"
+          m["code_file"]=nbp.name
+          m["is_private"]=True
+          meta.write_text(json.dumps(m,indent=2))
+          print("patched",nbp,"RUN_STACK replacements",replaced)
+          PY
+          python /tmp/patch.py
+
+      - name: Push EAM gold58 kernel
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a5-eam 2>&1 | tee out/a5-eam/push.txt
+          grep -Eo 'Kernel version [0-9]+' out/a5-eam/push.txt | tail -1 | tee out/a5-eam/version.txt
+
+      - name: Wait and collect
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 150); do
+            s="$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)"
+            echo "[$i] $s"
+            case "$s" in
+              *"KernelWorkerStatus.COMPLETE"*) break ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*)
+                kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 600 || true
+                exit 1 ;;
+            esac
+            sleep 60
+          done
+          mkdir -p out/a5-eam/output
+          kaggle kernels output "$KERNEL_ID" -p out/a5-eam/output -o
+          test -f out/a5-eam/output/a5_eam_gold58.json
+          cat out/a5-eam/output/a5_eam_gold58.json
+          kaggle kernels logs "$KERNEL_ID" > out/a5-eam/kernel.log 2>&1 || true
+
+      - name: Archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-eam-gold58
+          retention-days: 30
+          path: out/a5-eam/**
