@@ -1,0 +1,57 @@
+{
+  "schema": "a6_097_gap_budget_v1",
+  "parent": "APEX_0950",
+  "parent_public_lb": 0.950,
+  "target_public_lb": 0.970,
+  "macro_gain_required": 0.020,
+  "cumulative_target_auc_gain_required": 0.240,
+  "priority_targets": {
+    "Synovitis": {
+      "convnext_weight_in_apex": 0.03,
+      "reason": "Apex explicitly almost disables ConvNeXt; public analyses identify this as a persistent weak target.",
+      "a6_branch": "fluid_sensitive_inflammatory"
+    },
+    "PF OA": {
+      "convnext_weight_in_apex": 0.08,
+      "reason": "Apex relies almost entirely on CoAt multi-slot axial coverage; independent clean readers remain weak.",
+      "a6_branch": "axial_patellofemoral"
+    },
+    "Lateral OA": {
+      "convnext_weight_in_apex": 0.08,
+      "reason": "Expanded CoAt gained +0.048 yet remains one of the historically weak lateral findings.",
+      "a6_branch": "lateral_compartment"
+    },
+    "Lateral Meniscus": {
+      "convnext_weight_in_apex": 0.08,
+      "reason": "Expanded CoAt gained +0.071 and dominates ConvNeXt, leaving little diversity in the final parent.",
+      "a6_branch": "lateral_meniscus_dense_view"
+    }
+  },
+  "gain_scenarios": [
+    {
+      "name": "four_target_attack",
+      "per_target_gain": 0.060,
+      "targets": 4,
+      "cumulative_gain": 0.240,
+      "macro_gain": 0.020,
+      "projected_score_if_transfer_is_exact": 0.970
+    },
+    {
+      "name": "six_target_broad",
+      "per_target_gain": 0.040,
+      "targets": 6,
+      "cumulative_gain": 0.240,
+      "macro_gain": 0.020,
+      "projected_score_if_transfer_is_exact": 0.970
+    },
+    {
+      "name": "eight_target_shallow",
+      "per_target_gain": 0.030,
+      "targets": 8,
+      "cumulative_gain": 0.240,
+      "macro_gain": 0.020,
+      "projected_score_if_transfer_is_exact": 0.970
+    }
+  ],
+  "warning": "These are arithmetic score budgets, not predictions. Hidden-test transfer must be demonstrated independently."
+}
