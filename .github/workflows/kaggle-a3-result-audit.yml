@@ -1,0 +1,28 @@
+name: A3 training result audit
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/audit-a3-result.txt
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: chrishotza/rsna-exp-a3-a3-rank-training
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: Read A3 result
+        run: |
+          set -euo pipefail
+          echo "=== STATUS ==="
+          kaggle kernels status "$KERNEL_ID"
+          echo "=== FILES ==="
+          kaggle kernels files "$KERNEL_ID" -v
+          echo "=== FINAL LOGS ==="
+          kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 500
