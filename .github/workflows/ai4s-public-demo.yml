@@ -41,7 +41,7 @@ jobs:
           d={"title":"AI4S 2026 Cell Phenotype Demo V10",
              "id":"chrishotza/ai4s-2026-temporal-cellular-phenotype-demo",
              "licenses":[{"name":"other"}],
-             "subtitle":"91-second demo: real CellposeSAM-v2 microscopy predictions and temporal behavior analysis",
+             "subtitle":"91-second narrated microscopy and cell-tracking demonstration",
              "description":"AI4S 2026 computational science demonstration. Image-derived CellposeSAM-v2 masks and tracked cells, with a separate internal 168-frame CTC evaluation. Descriptive phenotypes, not independently validated biological cell states. Upstream CTC image/data and model rights are retained by their respective owners."}
           open("ai4s_video/dataset-metadata.json","w").write(json.dumps(d,indent=2))
           PY
