@@ -2,7 +2,7 @@ name: A6 Kaggle smoke push
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/a6-kaggle-smoke.yml"]
+    paths:\n      - ".github/workflows/a6-kaggle-smoke.yml"
   workflow_dispatch:
 
 permissions:
