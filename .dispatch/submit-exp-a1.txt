@@ -1,1 +1,1 @@
-TRIGGER EXP-A2 DSR-1 FIXED V2 via proven workflow identity. Duplicate guard required. Push once, run once, submit once if kernel completes.
+TRIGGER EXP-A2 DSR-1 FIXED V3 via proven workflow identity. Duplicate guard required. Push once, run once, submit once if kernel completes.
