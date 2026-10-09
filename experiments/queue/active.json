@@ -1,5 +1,5 @@
 {
-  "status": "IN_FLIGHT",
+  "status": "COMPLETE_PENDING_SCORE",
   "experiment_id": "EXP-A1",
   "parent_experiment": "EXP-A0",
   "baseline_notebook": "notebooks/A0_public_0941/a0-submitted-freeze.ipynb",
@@ -10,5 +10,5 @@
   "kernel_id": "chrishotza/rsna-exp-a1-amp-auto-t4",
   "submission_message": "EXP-A1 | AMP auto for T4 | candidate=59c67221089cd611e317a5464731b07df0447da4",
   "submission_ref": "56988112",
-  "note": "Already submitted once. Never push or submit this experiment again. Wait for ref 56988112 to finish."
+  "note": "User reports EXP-A1 ref 56988112 finished. Exact official score/result row is not yet recorded in this repository. Do not resubmit EXP-A1. Research may continue, but no next experiment can become READY until the score and diagnostics are recorded."
 }
