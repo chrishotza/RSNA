@@ -1,1 +1,1 @@
-TRIGGER PROVEN WORKFLOW ID FOR EXP-A2 DSR-1. The workflow file now targets A2 only. Duplicate guard required; submit exactly once.
+TRIGGER EXP-A2 DSR-1 FIXED V2 via proven workflow identity. Duplicate guard required. Push once, run once, submit once if kernel completes.
