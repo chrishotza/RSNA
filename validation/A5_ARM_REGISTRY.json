@@ -61,25 +61,31 @@
       "gold58_macro": 0.9078,
       "mean_rank_corr_between_internal_arms": 0.756,
       "per_target_auc": {
-        "ACL": 0.912,
-        "MCL": 0.846,
-        "Medial Meniscus": 0.934,
-        "Lateral Meniscus": 0.852,
-        "Medial OA": 0.947,
-        "Lateral OA": 0.857,
-        "PF OA": 0.81,
-        "Effusion": 0.957,
-        "Synovitis": 0.84,
-        "Baker's": 0.913,
-        "Contusion": 0.947,
-        "Fracture": 0.932
+        "ACL": 0.958,
+        "MCL": 0.828,
+        "Medial Meniscus": 0.963,
+        "Lateral Meniscus": 0.878,
+        "Medial OA": 0.967,
+        "Lateral OA": 0.849,
+        "PF OA": 0.819,
+        "Effusion": 0.97,
+        "Synovitis": 0.853,
+        "Baker's": 0.902,
+        "Contusion": 0.951,
+        "Fracture": 0.954
       },
       "recommended_targets": [
         "Effusion",
-        "Synovitis",
-        "Contusion",
+        "Medial OA",
+        "Medial Meniscus",
+        "ACL",
         "Fracture",
-        "Medial OA"
+        "Contusion",
+        "Synovitis"
+      ],
+      "notes": [
+        "Per-target numbers are for the 50/50 rank blend of Arm A RadImageNet and Arm B ImageNet, not Arm A alone.",
+        "Public reference 0.940 + per-label arms scored 0.941 at both full and halved weights; authors concluded redundancy with baseline limited the gain."
       ]
     }
   },
