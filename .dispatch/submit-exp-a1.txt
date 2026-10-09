@@ -1,0 +1,1 @@
+EXP-A1 single controlled submission. One functional line differs from A0: cell 19 AMP_PREF bf16 -> auto. Do not create any second competition submission.
