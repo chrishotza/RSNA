@@ -75,7 +75,7 @@ jobs:
 
           cat > build/a3/kernel-metadata.json <<'JSON'
           {
-            "id": "chrishotza/rsna-exp-a3-rank-train",
+            "id": "chrishotza/rsna-exp-a3-a3-rank-training",
             "title": "RSNA EXP-A3 A3-RANK training",
             "code_file": "a3-rank-train.py",
             "language": "python",
@@ -102,7 +102,7 @@ jobs:
           from pathlib import Path
           p=Path("build/a3/kernel-metadata.json")
           meta=json.loads(p.read_text())
-          assert meta["id"]=="chrishotza/rsna-exp-a3-rank-train"
+          assert meta["id"]=="chrishotza/rsna-exp-a3-a3-rank-training"
           assert meta["enable_internet"] is False
           assert meta["enable_gpu"] is True
           assert meta["competition_sources"]==["rsna-knee-abnormality-detection"]
