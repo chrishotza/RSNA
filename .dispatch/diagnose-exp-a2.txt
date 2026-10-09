@@ -1,1 +1,1 @@
-DIAGNOSE EXP-A2 KERNEL V1. Read-only Kaggle status/logs/output capture. Do not push or submit.
+diagnose A3 kernel
