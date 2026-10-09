@@ -1,0 +1,161 @@
+name: Kaggle EXP-A5 exact 0.944 dry run
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/run-exp-a5-frontier.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a5-frontier
+  cancel-in-progress: true
+
+jobs:
+  a5:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      SOURCE_KERNEL: goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944
+      KERNEL_ID: chrishotza/rsna-exp-a5-frontier-0944
+
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+
+      - name: Pull exact public 0.944 source
+        run: |
+          set -euo pipefail
+          mkdir -p build/a5 out/a5
+          kaggle kernels pull "$SOURCE_KERNEL" -p build/a5 -m
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("build/a5/kernel-metadata.json")
+          m=json.loads(p.read_text())
+          m["id"]="chrishotza/rsna-exp-a5-frontier-0944"
+          m["title"]="rsna-exp-a5-frontier-0944"
+          m.pop("id_no",None)
+          m["is_private"]=True
+          p.write_text(json.dumps(m,indent=2))
+          print(json.dumps({
+              "id":m["id"],
+              "code_file":m["code_file"],
+              "dataset_sources":m.get("dataset_sources",[]),
+              "kernel_sources":m.get("kernel_sources",[]),
+              "model_sources":m.get("model_sources",[]),
+              "competition_sources":m.get("competition_sources",[])
+          },indent=2))
+          PY
+
+      - name: Exact-source audit
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,hashlib,re
+          from pathlib import Path
+          nbs=list(Path("build/a5").glob("*.ipynb"))
+          if len(nbs)!=1: raise SystemExit(f"expected one notebook, got {nbs}")
+          p=nbs[0]
+          raw=p.read_bytes()
+          nb=json.loads(raw)
+          code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          required=[
+            "RUN_STACK = True",
+            "OWN_W = 0.30",
+            "cnxt_v0_fold0.pt",
+            "convnext_tiny",
+            "Community stack (70%)",
+            "Rank blend",
+          ]
+          missing=[x for x in required if x not in code]
+          if missing: raise SystemExit(f"frontier source drift: {missing}")
+          if "OWN_W = 0.30" not in code: raise SystemExit("reader blend weight drift")
+          receipt={
+            "source_kernel":"goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944",
+            "notebook_sha256":hashlib.sha256(raw).hexdigest(),
+            "exact_source_unmodified":True,
+            "run_stack":True,
+            "reader_weight":0.30,
+          }
+          Path("out/a5/source-receipt.json").write_text(json.dumps(receipt,indent=2))
+          print(json.dumps(receipt,indent=2))
+          PY
+
+      - name: Push exact A5 frontier kernel
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a5 2>&1 | tee out/a5/kernel-push.txt
+          version="$(grep -Eo 'Kernel version [0-9]+' out/a5/kernel-push.txt | grep -Eo '[0-9]+' | tail -n 1)"
+          test -n "$version"
+          echo "$version" > out/a5/kernel-version.txt
+          echo "A5 VERSION $version"
+
+      - name: Wait for Kaggle completion
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 150); do
+            status="$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)"
+            echo "[$i] $status"
+            printf '%s\n' "$status" > out/a5/status-latest.txt
+            case "$status" in
+              *"KernelWorkerStatus.COMPLETE"*) exit 0 ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*)
+                kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 500 || true
+                exit 1 ;;
+            esac
+            sleep 60
+          done
+          echo "timeout waiting A5"; exit 1
+
+      - name: Download and validate outputs
+        run: |
+          set -euo pipefail
+          mkdir -p out/a5/output
+          kaggle kernels output "$KERNEL_ID" -p out/a5/output -o
+          kaggle kernels logs "$KERNEL_ID" > out/a5/kernel.log 2>&1 || true
+          python - <<'PY'
+          import csv,hashlib,json,math
+          from pathlib import Path
+          out=Path("out/a5/output")
+          subs=list(out.rglob("submission.csv"))
+          if len(subs)!=1: raise SystemExit(f"expected one submission.csv, got {subs}")
+          p=subs[0]
+          rows=list(csv.reader(p.open()))
+          if len(rows)<2 or len(rows[0])!=13:
+              raise SystemExit(f"bad submission dimensions rows={len(rows)} cols={len(rows[0]) if rows else 0}")
+          expected=["StudyInstanceUID","ACL","MCL","Medial Meniscus","Lateral Meniscus","Medial OA","Lateral OA","PF OA","Effusion","Synovitis","Baker's","Contusion","Fracture"]
+          if rows[0]!=expected: raise SystemExit(f"header drift: {rows[0]}")
+          uids=[]
+          for row in rows[1:]:
+              if len(row)!=13: raise SystemExit("row width drift")
+              uids.append(row[0])
+              for x in row[1:]:
+                  v=float(x)
+                  if not math.isfinite(v) or not 0.0<=v<=1.0:
+                      raise SystemExit("invalid prediction")
+          if len(uids)!=len(set(uids)): raise SystemExit("duplicate UID")
+          receipt={
+              "status":"COMPLETE",
+              "rows":len(uids),
+              "submission_sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+              "kernel":"chrishotza/rsna-exp-a5-frontier-0944",
+              "source":"goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944",
+              "claimed_public_source_score":0.944,
+              "competition_submitted":False
+          }
+          Path("out/a5/validation-receipt.json").write_text(json.dumps(receipt,indent=2))
+          print("A5 EXACT FRONTIER OUTPUT VERIFIED")
+          print(json.dumps(receipt,indent=2))
+          PY
+
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a5-frontier-0944-dry-run
+          retention-days: 30
+          path: out/a5/**
