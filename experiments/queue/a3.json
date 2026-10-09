@@ -1,5 +1,5 @@
 {
-  "status": "KAGGLE_TRAINING_LAUNCH_READY",
+  "status": "KAGGLE_TRAINING_IN_FLIGHT",
   "experiment_id": "EXP-A3",
   "codename": "A3-RANK",
   "parent_experiment": "EXP-A0",
@@ -40,7 +40,7 @@
     "Write OOF/gold/rank-correlation diagnostics"
   ],
   "submit_allowed": false,
-  "kernel_id": "chrishotza/rsna-exp-a3-rank-train",
+  "kernel_id": "chrishotza/rsna-exp-a3-a3-rank-training",
   "training_script": "notebooks/experiments/EXP-A3-rank-train.py",
   "feature_bank_contract": {
     "encoder": "RadImageNet ResNet-50 SHA256 08629f7e7bd3e29b8ee9522ca3f65ce4d010a7ddf74f0ea3c7e3f3d0bbab0734",
@@ -68,5 +68,9 @@
       "A3 comparison receipt"
     ],
     "competition_submission": false
-  }
+  },
+  "kernel_version": 1,
+  "kaggle_url": "https://www.kaggle.com/code/chrishotza/rsna-exp-a3-a3-rank-training",
+  "launch_commit": "fbcd4f614b17d078a32e19ce98e1a9b6089e6fb2",
+  "launch_action_run": 37911520872
 }
