@@ -1,1 +1,1 @@
-check A3 training latest status
+check A3 training COMPLETE and outputs now
