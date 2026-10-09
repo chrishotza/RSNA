@@ -1,0 +1,45 @@
+name: A5 D4 gold58 feasibility audit
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/audit-d4-gold58-feasibility.txt
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: Pull D4-lite
+        run: |
+          mkdir -p out/d4
+          kaggle kernels pull pjmathematician/rsna-knee-d4-lite -p out/d4 -m
+      - name: Extract gold58 adaptation surface
+        run: |
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          p=next(Path("out/d4").glob("*.ipynb"))
+          nb=json.loads(p.read_text())
+          code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          needles=[
+            "train.csv","train_series.csv","test.csv","test_series.csv",
+            "_RSNA_TEST_IDS","RSNA_TEST_IDS","test_ids","StudyInstanceUID",
+            "def run","def infer","def predict","def prepare","competition_root",
+            "submission(","_pipeline_stage.csv","ROOT / 'test.csv'","ROOT / \"test.csv\""
+          ]
+          for n in needles:
+              print(f"\n===== {n} =====")
+              pos=0;k=0
+              while True:
+                  pos=code.find(n,pos)
+                  if pos<0 or k>=20: break
+                  print(code[max(0,pos-1400):min(len(code),pos+4200)])
+                  pos+=len(n);k+=1
+          PY
