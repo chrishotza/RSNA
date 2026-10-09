@@ -1,0 +1,41 @@
+name: A6 inspect Kaggle file API
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-kaggle-file-api.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle
+      - name: Inspect API
+        run: |
+          python - <<'PY'
+          import inspect
+          from kaggle.api.kaggle_api_extended import KaggleApi
+          api=KaggleApi(); api.authenticate()
+          candidates=[x for x in dir(api) if "competition" in x.lower() and "file" in x.lower()]
+          print("methods",candidates)
+          for name in candidates:
+              fn=getattr(api,name)
+              try: print(name,inspect.signature(fn))
+              except Exception: pass
+          fn=getattr(api,"competition_list_files",None)
+          if fn:
+              try:
+                  out=fn("rsna-knee-abnormality-detection", page_size=200)
+              except TypeError:
+                  out=fn("rsna-knee-abnormality-detection")
+              print("return_type",type(out))
+              print("return_repr",repr(out)[:5000])
+          PY
