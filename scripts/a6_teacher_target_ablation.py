@@ -46,7 +46,7 @@ def main():
     va = visual[TARGETS].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
     if not np.isfinite(va).all() or (va < 0).any() or (va > 1).any():
         raise ValueError("Visual teacher must supply finite [0,1] probabilities")
-    if np.isinf(ta).any() or np.isfinite(ta).any() is False:
+    if np.isinf(ta).any() or not np.isfinite(ta).any():
         raise ValueError("Invalid text probabilities")
     if np.isfinite(ta).any() and ((ta[np.isfinite(ta)] < 0).any() or (ta[np.isfinite(ta)] > 1).any()):
         raise ValueError("Text probabilities outside [0,1]")
@@ -68,7 +68,9 @@ def main():
         df = pd.DataFrame(probs, columns=TARGETS)
         df.insert(0, UID, text.index)
         # Per-cell weights are explicit; never silently train absent text as clean negative.
-        weights = conf if name == "text" else (np.ones_like(conf) if name == "visual" else 0.5*conf+0.5)
+        weights = (conf if name == "text" else
+                   np.ones_like(conf) if name == "visual" else
+                   np.where(present, 0.5 * conf + 0.5, 1.0))
         for j, target in enumerate(TARGETS):
             df[f"{target}__conf"] = weights[:, j]
         df.to_csv(root/f"a6_{name}_targets.csv", index=False)
