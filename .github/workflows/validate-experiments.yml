@@ -8,6 +8,8 @@ on:
       - "notebooks/experiments/**"
       - "scripts/validate_notebook_experiment.py"
       - "tests/test_validate_notebook_experiment.py"
+      - "src/proxy_score.py"
+      - "tests/test_proxy_score.py"
 
 concurrency:
   group: rsna-offline-experiment-gate
@@ -24,6 +26,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install proxy test dependencies
+        run: python -m pip install --disable-pip-version-check numpy pandas scikit-learn pytest
+
+      - name: Test strict OOF scoring
+        run: python -m pytest -q tests/test_proxy_score.py
       - name: Unit-test the experiment gate
         run: python -m unittest discover -s tests -p 'test_validate_notebook_experiment.py' -v
 
