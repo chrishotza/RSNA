@@ -1,0 +1,40 @@
+{
+  "schema": "a6_teacher_plan_v1",
+  "selection_audit_run": 37983404784,
+  "policy": "frozen_after_one_read_only_source audit; gold UIDs hard-excluded before training",
+  "sources": {
+    "hybrid": {
+      "kaggle_dataset": "flight0234/rsna-knee-hybrid-report-labels",
+      "file": "report_labels_v4hybrid.csv",
+      "gold_macro_auc_observed": 0.8991309464454375,
+      "non_gold_rows": 4349
+    },
+    "steven": {
+      "kaggle_dataset": "stevenleehans/rsna-knee-llm-report-labels",
+      "file": "llm_labels_v2.csv",
+      "gold_macro_auc_observed": 0.8873494977640523,
+      "non_gold_rows": 4349
+    }
+  },
+  "source_by_target": {
+    "ACL": "hybrid",
+    "MCL": "hybrid",
+    "Medial Meniscus": "hybrid",
+    "Lateral Meniscus": "hybrid",
+    "Medial OA": "hybrid",
+    "Lateral OA": "hybrid",
+    "PF OA": "hybrid",
+    "Effusion": "hybrid",
+    "Synovitis": "steven",
+    "Baker's": "hybrid",
+    "Contusion": "hybrid",
+    "Fracture": "hybrid"
+  },
+  "priority_target_evidence": {
+    "Lateral Meniscus": {"source": "hybrid", "gold_auc": 0.8788819875776398},
+    "Lateral OA": {"source": "hybrid", "gold_auc": 0.832688588007737},
+    "PF OA": {"source": "hybrid", "gold_auc": 0.9015444015444015},
+    "Synovitis": {"source": "steven", "gold_auc": 0.7903225806451613}
+  },
+  "warning": "Teacher selection itself used public gold-agreement evidence and is now frozen. No later A6 model hyperparameter may be selected by re-optimizing this mapping on gold58."
+}
