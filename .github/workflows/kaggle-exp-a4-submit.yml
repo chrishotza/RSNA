@@ -1,0 +1,110 @@
+name: Kaggle EXP-A4 submit verified v1
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/submit-exp-a4.txt
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      COMPETITION: rsna-knee-abnormality-detection
+      KERNEL_ID: chrishotza/rsna-exp-a4-ortho
+      KERNEL_VERSION: "1"
+      SUBMISSION_MESSAGE: "EXP-A4 | ORTHO | 3-arm public disagreement router"
+
+    steps:
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Download A4 v1 outputs
+        run: |
+          set -euo pipefail
+          mkdir -p out/a4-submit
+          kaggle kernels output "$KERNEL_ID" -p out/a4-submit -o
+          find out/a4-submit -maxdepth 3 -type f -print
+
+      - name: Validate submission with stdlib
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, math
+          from pathlib import Path
+
+          LABELS = [
+              "ACL","MCL","Medial Meniscus","Lateral Meniscus",
+              "Medial OA","Lateral OA","PF OA","Effusion",
+              "Synovitis","Baker's","Contusion","Fracture"
+          ]
+          p=Path("out/a4-submit/submission.csv")
+          if not p.is_file():
+              raise SystemExit("submission.csv missing")
+          with p.open(newline="",encoding="utf-8") as f:
+              rows=list(csv.reader(f))
+          if not rows:
+              raise SystemExit("submission.csv empty")
+          expected=["StudyInstanceUID",*LABELS]
+          if rows[0] != expected:
+              raise SystemExit(f"bad header: {rows[0]}")
+          if len(rows) < 2:
+              raise SystemExit("no prediction rows")
+          seen=set()
+          for i,row in enumerate(rows[1:], start=2):
+              if len(row)!=13:
+                  raise SystemExit(f"row {i} has {len(row)} columns")
+              uid=row[0].strip()
+              if not uid or uid in seen:
+                  raise SystemExit(f"bad/duplicate UID at row {i}: {uid!r}")
+              seen.add(uid)
+              for x in row[1:]:
+                  v=float(x)
+                  if not math.isfinite(v) or v<0.0 or v>1.0:
+                      raise SystemExit(f"bad prediction row {i}: {v}")
+          print(f"A4 submission validated rows={len(rows)-1}")
+          PY
+
+      - name: Submit A4 v1 to competition
+        run: |
+          set -euo pipefail
+          kaggle competitions submit "$COMPETITION"             -k "$KERNEL_ID"             -v "$KERNEL_VERSION"             -f submission.csv             -m "$SUBMISSION_MESSAGE"             2>&1 | tee out/a4-submit/submit.txt
+
+      - name: Verify A4 appears in submissions
+        run: |
+          set -euo pipefail
+          found=false
+          for i in $(seq 1 20); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/a4-submit/submissions.csv
+            python - <<'PY'
+          import csv, os, sys, json
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a4-submit/submissions.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if not matches:
+              sys.exit(10)
+          print("FOUND A4 SUBMISSION")
+          print(json.dumps(matches[-1],indent=2))
+          Path("out/a4-submit/submission-found.json").write_text(json.dumps(matches[-1],indent=2))
+          PY
+            rc=$?
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            sleep 15
+          done
+          test "$found" = true || { echo "A4 submission not visible"; exit 1; }
+
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a4-submit-v1
+          retention-days: 30
+          path: out/a4-submit/**
