@@ -133,3 +133,49 @@ def target_acquisition_matrix(series_rows: Iterable[dict]) -> dict[str,list[floa
                 policy=pol,
             ))
     return out
+
+
+def decode_acquisition_type_id(type_id:int)->tuple[str,bool,bool]:
+    """Inverse of a3_feature_bank.acquisition_type_id for IDs 0..15."""
+    i=int(type_id)
+    if not 0 <= i <= 15:
+        raise ValueError("acquisition type id outside [0,15]")
+    plane_id=i//4
+    rem=i%4
+    fluid=bool(rem//2)
+    fat=bool(rem%2)
+    plane={0:"UNKNOWN",1:"SAGITTAL",2:"CORONAL",3:"AXIAL"}[plane_id]
+    return plane,fluid,fat
+
+
+def attention_log_prior_from_token_types(token_types, strength:float=0.35):
+    """Build [B,Q,T] additive attention-logit priors from acquisition IDs.
+
+    strength=0 is exactly neutral. We normalize each target's acquisition
+    multipliers by its median positive value and take log, so the prior acts
+    multiplicatively on attention odds rather than hard-routing tokens.
+    """
+    import numpy as np
+    tt=np.asarray(token_types)
+    if tt.ndim != 2:
+        raise ValueError("token_types must be [B,T]")
+    if strength < 0:
+        raise ValueError("strength must be non-negative")
+    B,T=tt.shape
+    out=np.zeros((B,len(TARGETS),T),dtype=np.float32)
+    for b in range(B):
+        for t in range(T):
+            plane,fluid,fat=decode_acquisition_type_id(int(tt[b,t]))
+            for q,target in enumerate(TARGETS):
+                p=policy_for_target(target)
+                w=acquisition_score(
+                    plane=plane,fluid_sensitive=fluid,
+                    fat_suppression=fat,policy=p,
+                )
+                out[b,q,t]=float(w)
+    for q in range(len(TARGETS)):
+        vals=out[:,q,:]
+        pos=vals[vals>0]
+        med=float(np.median(pos)) if len(pos) else 1.0
+        out[:,q,:]=np.log(np.clip(vals/max(med,1e-8),1e-4,1e4))*float(strength)
+    return out
