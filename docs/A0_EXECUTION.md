@@ -1,10 +1,10 @@
-# A0 / A1 execution protocol
+# A0 anchor and controlled experiment protocol
 
 ## Objective
 
 Freeze a reproducible parent before modifying anything.
 
-## A0 - reproducible code anchor
+## ANCHOR-A0 - measured parent
 
 Source:
 NTejas-1/RSNA-Knee-Abnormality-Detection
@@ -25,7 +25,7 @@ Local artifacts we need:
 - proxy_gold when the 58-study targets are available;
 - runtime and peak GPU memory.
 
-## A1 - visible public score anchor
+## ANCHOR-B - visible public score reference (not EXP-A1)
 
 Source:
 Aman Atar, `amanatar/rsna-knee-abnormality-detection`.
