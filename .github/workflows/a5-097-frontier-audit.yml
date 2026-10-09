@@ -1,0 +1,87 @@
+name: A5 097 frontier audit
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/audit-a5-097-frontier.txt
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+
+      - name: Pull D4-lite 0.945 and gold blend harness
+        run: |
+          set -euo pipefail
+          mkdir -p out/d4 out/gate
+          kaggle kernels pull pjmathematician/rsna-knee-d4-lite -p out/d4 -m
+          kaggle kernels pull dariushafshar/rsna-blend-gate-harness-58-golds-12-targets -p out/gate -m
+          echo "=== D4 FILES ==="
+          find out/d4 -maxdepth 2 -type f -printf '%P\t%s\n' | sort
+          echo "=== GATE FILES ==="
+          find out/gate -maxdepth 2 -type f -printf '%P\t%s\n' | sort
+
+      - name: Static forensic diff
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,re,hashlib
+          from pathlib import Path
+
+          def code_from(root):
+              root=Path(root)
+              nbs=list(root.glob("*.ipynb"))
+              pys=list(root.glob("*.py"))
+              if nbs:
+                  p=nbs[0]; nb=json.loads(p.read_text(errors="replace"))
+                  code="\n".join("".join(c.get("source",[])) for c in nb.get("cells",[]) if c.get("cell_type")=="code")
+              elif pys:
+                  p=pys[0]; code=p.read_text(errors="replace")
+              else:
+                  raise SystemExit(f"no source in {root}")
+              return p,code
+
+          patterns=[
+              r"0\.94[0-9][^\n]{0,240}",r"blend[^\n]{0,300}",r"weight[^\n]{0,300}",
+              r"rank[^\n]{0,300}",r"target[^\n]{0,300}",r"gold[^\n]{0,300}",
+              r"convnext[^\n]{0,300}",r"dino[^\n]{0,300}",r"coatnet[^\n]{0,300}",
+              r"raptor[^\n]{0,300}",r"radimagenet[^\n]{0,300}",
+              r"model_sources[^\n]{0,500}",r"dataset_sources[^\n]{0,500}",
+              r"kernel_sources[^\n]{0,500}",r"submission[^\n]{0,300}",
+              r"auc[^\n]{0,300}",r"per.target[^\n]{0,300}",
+          ]
+          report={}
+          for name,root in [("d4","out/d4"),("gate","out/gate")]:
+              p,code=code_from(root)
+              hits=[]
+              for pat in patterns:
+                  ms=re.findall(pat,code,re.I)
+                  if ms: hits.append({"pattern":pat,"matches":ms[:120]})
+              meta=Path(root)/"kernel-metadata.json"
+              report[name]={
+                  "source_file":p.name,
+                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+                  "metadata":json.loads(meta.read_text()) if meta.exists() else {},
+                  "hits":hits,
+              }
+              Path(root+"/source.py").write_text(code)
+          Path("out/a5_097_frontier_audit.json").write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2)[:60000])
+          PY
+
+      - name: Archive frontier evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-097-frontier-audit
+          retention-days: 30
+          path: |
+            out/d4/**
+            out/gate/**
+            out/a5_097_frontier_audit.json
