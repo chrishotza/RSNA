@@ -87,6 +87,53 @@
         "Per-target numbers are for the 50/50 rank blend of Arm A RadImageNet and Arm B ImageNet, not Arm A alone.",
         "Public reference 0.940 + per-label arms scored 0.941 at both full and halved weights; authors concluded redundancy with baseline limited the gain."
       ]
+    },
+    "APEX_COATNET_0949": {
+      "role": "CLEAN_PUBLIC_PARENT_COMPONENT",
+      "public_lb": 0.949,
+      "provenance": "TRAINED_ON_4349_NON_GOLD_STUDIES_DECLARED",
+      "gold58_allowed": true,
+      "source": "sujanmajhisuzan/rsna-knee-apex-grandmaster-stack",
+      "checkpoint": "raptor_ft_alldata_t16_blendjev_oai_d96_r384_swa.pt",
+      "architecture": "coatnet_rmlp_2_rw_384.sw_in12k_ft_in1k",
+      "resolution": 384,
+      "gold58_macro": 0.9054,
+      "incumbent_gold58_macro": 0.8923,
+      "bootstrap_win_fraction": 0.927,
+      "notes": [
+        "Notebook states expanded training corpus uses 4,349 labelled non-gold studies; 58 studies are held as gate.",
+        "Gold58 delta versus incumbent CoAtNet: +0.0131.",
+        "Largest reported target gains: Lateral Meniscus +0.071, Fracture +0.057, Lateral OA +0.048, Medial Meniscus +0.035, ACL +0.028."
+      ]
+    },
+    "APEX_0950": {
+      "role": "PUBLIC_PARENT",
+      "public_lb": 0.95,
+      "provenance": "PARENT_COMPOSED_FROM_CLEAN_COATNET_PLUS_CLEAN_CONVNEXT",
+      "gold58_allowed": false,
+      "source": "sujanmajhisuzan/rsna-knee-apex-grandmaster-stack",
+      "components": [
+        "APEX_COATNET_0949",
+        "CONVNEXT_2P5D_0944_READER"
+      ],
+      "target_convnext_weights": {
+        "ACL": 0.25,
+        "MCL": 0.2,
+        "Medial Meniscus": 0.2,
+        "Lateral Meniscus": 0.08,
+        "Medial OA": 0.25,
+        "Lateral OA": 0.08,
+        "PF OA": 0.08,
+        "Effusion": 0.04,
+        "Synovitis": 0.03,
+        "Baker's": 0.35,
+        "Contusion": 0.3,
+        "Fracture": 0.08
+      },
+      "notes": [
+        "Final fusion is target-specific rank-space blend followed by percentile re-ranking.",
+        "This replaces D4-lite 0.945 as the public score frontier for A6."
+      ]
     }
   },
   "current_target_map": {
@@ -137,5 +184,12 @@
       "CONVNEXT_2P5D_0944_READER",
       "CLEAN_COATNET_PIPELINE"
     ]
+  },
+  "current_frontier": {
+    "public_parent": "APEX_0950",
+    "public_lb": 0.95,
+    "stretch_target": 0.97,
+    "required_macro_gain": 0.02,
+    "required_cumulative_target_auc_gain": 0.24
   }
 }
