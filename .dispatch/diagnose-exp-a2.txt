@@ -1,1 +1,1 @@
-diagnose A3 v3 kernel
+diagnose A3 v4 kernel
