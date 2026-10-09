@@ -1,0 +1,69 @@
+name: A6 inspect D4 gold reference package
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-d4-gold-package.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle numpy
+      - name: List D4 dataset
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6-d4-gold
+          kaggle datasets files -d mattiaangeli/rsna-knee-coatnet-d4-depthzone-swa3-b2 --csv | tee out/a6-d4-gold/files.csv
+          grep -E 'gold58|reference|audit|manifest|prediction|receipt|npz|json' out/a6-d4-gold/files.csv || true
+      - name: Download small gold/reference artifacts
+        run: |
+          python - <<'PY'
+          import csv,subprocess
+          rows=list(csv.DictReader(open("out/a6-d4-gold/files.csv")))
+          for r in rows:
+              name=r.get("name","")
+              size=int(float(r.get("size",0) or 0))
+              if size<=20_000_000 and any(k in name.lower() for k in ["gold58","reference","audit","manifest","receipt","prediction"]):
+                  print("DOWNLOAD",name,size)
+                  subprocess.run(["kaggle","datasets","download","-d","mattiaangeli/rsna-knee-coatnet-d4-depthzone-swa3-b2","-f",name,"-p","out/a6-d4-gold"],check=False)
+          PY
+          find out/a6-d4-gold -maxdepth 4 -type f -printf '%P	%s
+' | sort
+      - name: Inspect NPZ/JSON
+        run: |
+          python - <<'PY'
+          import json,zipfile
+          from pathlib import Path
+          import numpy as np
+          root=Path("out/a6-d4-gold")
+          for z in list(root.glob("*.zip")):
+              try:
+                  with zipfile.ZipFile(z) as f: f.extractall(root/"unzipped")
+              except Exception as e: print("ZIPERR",z,e)
+          report={}
+          for p in list(root.rglob("*.npz")):
+              try:
+                  with np.load(p,allow_pickle=False) as z:
+                      report[str(p.relative_to(root))]={k:{"shape":list(z[k].shape),"dtype":str(z[k].dtype),"preview":z[k].reshape(-1)[:10].tolist()} for k in z.files}
+              except Exception as e: report[str(p.relative_to(root))]={"error":str(e)}
+          for p in list(root.rglob("*.json")):
+              if p.stat().st_size<5_000_000:
+                  try: report[str(p.relative_to(root))]=json.loads(p.read_text())
+                  except Exception: report[str(p.relative_to(root))]={"text":p.read_text(errors="replace")[:20000]}
+          Path("out/a6-d4-gold/inspection.json").write_text(json.dumps(report,indent=2,default=str))
+          print(json.dumps(report,indent=2,default=str)[:120000])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a6-d4-gold-package
+          retention-days: 30
+          path: out/a6-d4-gold/**
