@@ -41,7 +41,7 @@ def rank01(x: np.ndarray) -> np.ndarray:
             r=(i+k-1)/2
             ranks[order[i:k]]=r
             i=k
-        out[:,j]=r/max(len(x)-1,1)
+        out[:,j]=ranks/max(len(x)-1,1)
     return out
 
 def per_target_auc(y,p):
