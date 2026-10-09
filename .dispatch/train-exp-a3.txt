@@ -1,0 +1,4 @@
+EXP-A3 A3-RANK Kaggle training launch
+contract_commit=2695959c0a68b1d0ab2b4bebcdcceef30393e77d
+kernel=chrishotza/rsna-exp-a3-rank-train
+mode=training-only
