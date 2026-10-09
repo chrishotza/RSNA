@@ -1,0 +1,148 @@
+name: Kaggle EXP-A3 A3-2 inference dry run
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/run-exp-a3-infer.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a3-infer
+  cancel-in-progress: true
+
+jobs:
+  a3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: chrishotza/rsna-exp-a3-a3-2-submit
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Build inference-only notebook
+        run: |
+          set -euo pipefail
+          mkdir -p build/a3-infer out/a3-infer
+          python scripts/build_a3_inference_only.py             --source notebooks/experiments/EXP-A3-rank-submit.py             --output-py build/a3-infer/a3-a3-2-submit.py             --output-ipynb build/a3-infer/a3-a3-2-submit.ipynb
+
+          cp notebooks/A0_public_0941/kernel-metadata.json build/a3-infer/kernel-metadata.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("build/a3-infer/kernel-metadata.json")
+          m=json.loads(p.read_text())
+          m["id"]="chrishotza/rsna-exp-a3-a3-2-submit"
+          m["title"]="rsna-exp-a3-a3-2-submit"
+          m["code_file"]="a3-a3-2-submit.ipynb"
+          m["kernel_type"]="notebook"
+          m["language"]="python"
+          m["enable_gpu"]=True
+          m["enable_internet"]=False
+          ks=list(m.get("kernel_sources") or [])
+          src="chrishotza/rsna-exp-a3-a3-rank-training"
+          if src not in ks: ks.append(src)
+          m["kernel_sources"]=ks
+          p.write_text(json.dumps(m,indent=2))
+          print(json.dumps({
+              "id":m["id"],
+              "kernel_sources":m["kernel_sources"],
+              "dataset_sources":m.get("dataset_sources",[]),
+              "competition_sources":m.get("competition_sources",[])
+          },indent=2))
+          PY
+
+      - name: Static preflight
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          nb=json.loads(Path("build/a3-infer/a3-a3-2-submit.ipynb").read_text())
+          code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          compile(code,"a3-a3-2-submit.ipynb","exec")
+          req=[
+            "a3_a3-2_fold0.pt",
+            "VARIANTS[\"A3-2\"]",
+            "infer_fold_from_checkpoint",
+            "A3-RANK A3-2",
+            "submission.csv",
+          ]
+          missing=[x for x in req if x not in code]
+          if missing: raise SystemExit(f"missing A3 inference tokens: {missing}")
+          forbidden=["train_fold(train_records","build_records(comp,train_series"]
+          bad=[x for x in forbidden if x in code]
+          if bad: raise SystemExit(f"training path still active: {bad}")
+          print("A3-2 inference-only static preflight OK")
+          PY
+
+      - name: Push A3 inference kernel
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a3-infer 2>&1 | tee out/a3-infer/kernel-push.txt
+          version="$(grep -Eo 'Kernel version [0-9]+' out/a3-infer/kernel-push.txt | grep -Eo '[0-9]+' | tail -n 1)"
+          test -n "$version"
+          echo "$version" > out/a3-infer/kernel-version.txt
+          echo "A3 inference VERSION $version"
+
+      - name: Wait for A3 inference completion
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 150); do
+            status="$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)"
+            echo "[$i] $status"
+            printf '%s\n' "$status" > out/a3-infer/status-latest.txt
+            case "$status" in
+              *"KernelWorkerStatus.COMPLETE"*) exit 0 ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*) 
+                kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 400 || true
+                exit 1 ;;
+            esac
+            sleep 60
+          done
+          exit 1
+
+      - name: Download and validate A3 outputs
+        run: |
+          set -euo pipefail
+          mkdir -p out/a3-infer/output
+          kaggle kernels output "$KERNEL_ID" -p out/a3-infer/output -o
+          python - <<'PY'
+          import csv, json, math
+          from pathlib import Path
+          out=Path("out/a3-infer/output")
+          subs=list(out.rglob("submission.csv"))
+          recs=list(out.rglob("a3_submission_receipt.json"))
+          if len(subs)!=1: raise SystemExit(f"expected one submission.csv, got {subs}")
+          if len(recs)!=1: raise SystemExit(f"expected one receipt, got {recs}")
+          rows=list(csv.reader(subs[0].open()))
+          if len(rows)<2 or len(rows[0])!=13: raise SystemExit("bad submission shape")
+          for r in rows[1:]:
+              if len(r)!=13: raise SystemExit("bad row width")
+              for x in r[1:]:
+                  v=float(x)
+                  if not math.isfinite(v) or v<0 or v>1: raise SystemExit("bad prediction")
+          receipt=json.loads(recs[0].read_text())
+          if receipt.get("model")!="A3-RANK A3-2": raise SystemExit("wrong A3 variant")
+          print("A3 OUTPUT VERIFIED")
+          print(json.dumps(receipt,indent=2))
+          PY
+
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a3-a3-2-infer-dry-run
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/a3-infer/**
