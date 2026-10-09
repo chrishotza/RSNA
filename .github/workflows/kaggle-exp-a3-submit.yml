@@ -1,0 +1,120 @@
+name: Kaggle EXP-A3 single controlled submission
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/submit-exp-a3.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a3-submit
+  cancel-in-progress: false
+
+jobs:
+  a3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      COMPETITION: rsna-knee-abnormality-detection
+      KERNEL_ID: chrishotza/rsna-exp-a3-rank-submit
+      SUBMISSION_MESSAGE: "EXP-A3 | A3-RANK independent model | rank-first target-router"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Build A3 submission bundle
+        run: |
+          set -euo pipefail
+          mkdir -p build/a3-submit/src out/a3-submit
+          cp notebooks/experiments/EXP-A3-rank-submit.py build/a3-submit/a3-rank-submit.py
+          cp src/a3_uam_seq.py build/a3-submit/src/a3_uam_seq.py
+          cp src/a3_feature_bank.py build/a3-submit/src/a3_feature_bank.py
+          cp src/a3_training.py build/a3-submit/src/a3_training.py
+          touch build/a3-submit/src/__init__.py
+
+          python -m py_compile             build/a3-submit/a3-rank-submit.py             build/a3-submit/src/a3_uam_seq.py             build/a3-submit/src/a3_feature_bank.py             build/a3-submit/src/a3_training.py
+
+          cat > build/a3-submit/kernel-metadata.json <<'JSON'
+          {
+            "id": "chrishotza/rsna-exp-a3-rank-submit",
+            "title": "rsna-exp-a3-rank-submit",
+            "code_file": "a3-rank-submit.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": false,
+            "keywords": ["gpu","health","rsna","auc","ranking"],
+            "dataset_sources": [
+              "marwanmath/resnet-50-radimagenet-marwan",
+              "pilkwang/rsna-knee-llm-labels"
+            ],
+            "competition_sources": [
+              "rsna-knee-abnormality-detection"
+            ],
+            "model_sources": [],
+            "machine_shape": "NvidiaTeslaT4"
+          }
+          JSON
+
+      - name: Push EXP-A3 kernel
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a3-submit 2>&1 | tee out/a3-submit/kernel-push.txt
+          kernel_version="$(grep -Eo 'Kernel version [0-9]+' out/a3-submit/kernel-push.txt | grep -Eo '[0-9]+' | tail -n 1)"
+          test -n "$kernel_version" || { echo "Cannot recover A3 kernel version"; exit 1; }
+          echo "kernel_version=$kernel_version" >> "$GITHUB_ENV"
+          echo "$kernel_version" > out/a3-submit/kernel-version.txt
+          echo "A3 kernel version=$kernel_version"
+
+      - name: Submit EXP-A3 to competition
+        run: |
+          set -euo pipefail
+          kaggle competitions submit "$COMPETITION"             -k "$KERNEL_ID"             -v "$kernel_version"             -f submission.csv             -m "$SUBMISSION_MESSAGE"             2>&1 | tee out/a3-submit/submission-submit.txt
+
+      - name: Verify A3 appears in submissions
+        run: |
+          set -euo pipefail
+          found=false
+          for i in $(seq 1 20); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/a3-submit/submissions.csv
+            set +e
+            python - <<'PY'
+          import csv, os, sys, json
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a3-submit/submissions.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if not matches:
+              sys.exit(10)
+          row=matches[-1]
+          Path("out/a3-submit/submission-found.json").write_text(json.dumps(row,indent=2))
+          print("FOUND A3 SUBMISSION:", json.dumps(row, indent=2))
+          PY
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            if [ "$rc" -ne 10 ]; then exit 1; fi
+            sleep 15
+          done
+          test "$found" = true || { echo "A3 submission not visible after submit"; exit 1; }
+
+      - name: Archive A3 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a3-submission-launch
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/a3-submit/**
