@@ -1,0 +1,58 @@
+name: RSNA offline experiment gate
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - "notebooks/experiments/**"
+      - "scripts/validate_notebook_experiment.py"
+      - "experiments/queue/active.json"
+      - "experiments/ledger.csv"
+      - "experiments/submissions.csv"
+      - "docs/EXPERIMENT_SYSTEM.md"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate candidate against frozen parent
+        run: |
+          set -euo pipefail
+          mkdir -p out/experiment-gate
+          python scripts/validate_notebook_experiment.py \
+            --baseline notebooks/A0_public_0941/rsna-knee-blend-full.ipynb \
+            --candidate notebooks/experiments/EXP-A1-amp-auto-t4.ipynb \
+            --experiment-id EXP-A1 \
+            --changed-cell 19 \
+            --before "AMP_PREF = 'bf16'" \
+            --after "AMP_PREF = 'auto'" \
+            --output out/experiment-gate/EXP-A1-validation.json
+
+      - name: Ensure in-flight queue cannot be submitted again
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path("experiments/queue/active.json").read_text())
+          if q.get("status") == "IN_FLIGHT":
+              assert q.get("submission_ref"), "IN_FLIGHT experiment must have a submission ref"
+          print("Queue status:", q.get("status"))
+          print("Experiment:", q.get("experiment_id"))
+          print("Existing submission ref:", q.get("submission_ref") or "none")
+          print("This CPU-only gate never calls Kaggle or pushes a notebook.")
+          PY
+
+      - name: Archive cheap validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsna-offline-experiment-gate
+          retention-days: 30
+          path: out/experiment-gate/**
