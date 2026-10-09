@@ -1,1 +1,1 @@
-One-pass read-only audit using Kaggle CLI's supported submissions-history command. Return status and public score for all existing A0 refs. No new submission.
+CHECK SUBMISSION EXP-A1 ref 56988112. Read Kaggle history only; never push, run or submit.
