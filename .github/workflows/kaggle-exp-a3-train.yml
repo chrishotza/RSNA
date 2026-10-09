@@ -1,0 +1,137 @@
+name: Kaggle EXP-A3 rank training push
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/train-exp-a3.txt
+  workflow_dispatch:
+
+concurrency:
+  group: rsna-kaggle-exp-a3-train
+  cancel-in-progress: false
+
+jobs:
+  push-a3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: chrishotza/rsna-exp-a3-rank-train
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Static A3 preflight
+        run: |
+          set -euo pipefail
+          python -m py_compile src/a3_uam_seq.py src/a3_feature_bank.py src/a3_training.py notebooks/experiments/EXP-A3-rank-train.py
+          python - <<'PY'
+          import ast, hashlib, json
+          from pathlib import Path
+          required = [
+              Path("src/a3_uam_seq.py"),
+              Path("src/a3_feature_bank.py"),
+              Path("src/a3_training.py"),
+              Path("notebooks/experiments/EXP-A3-rank-train.py"),
+          ]
+          receipt = {}
+          for p in required:
+              ast.parse(p.read_text(encoding="utf-8"), filename=str(p))
+              receipt[str(p)] = hashlib.sha256(p.read_bytes()).hexdigest()
+          src = Path("notebooks/experiments/EXP-A3-rank-train.py").read_text(encoding="utf-8")
+          for token in [
+              'for variant in ("A3-1","A3-2","A3-3")',
+              'RAD_SHA256 = "08629f7e7bd3e29b8ee9522ca3f65ce4d010a7ddf74f0ea3c7e3f3d0bbab0734"',
+              'ANCHORS_PER_SERIES = 6',
+              'gold_mask',
+              'discover_pseudo_labels',
+              'a3_rank_comparison.json',
+          ]:
+              assert token in src, f"missing required A3 token: {token}"
+          Path("a3-static-receipt.json").write_text(json.dumps(receipt, indent=2))
+          print(json.dumps(receipt, indent=2))
+          PY
+
+      - name: Build minimal Kaggle training bundle
+        run: |
+          set -euo pipefail
+          mkdir -p build/a3/src out/a3
+          cp notebooks/experiments/EXP-A3-rank-train.py build/a3/a3-rank-train.py
+          cp src/a3_uam_seq.py build/a3/src/a3_uam_seq.py
+          cp src/a3_feature_bank.py build/a3/src/a3_feature_bank.py
+          cp src/a3_training.py build/a3/src/a3_training.py
+          touch build/a3/src/__init__.py
+          cp a3-static-receipt.json out/a3/a3-static-receipt.json
+
+          cat > build/a3/kernel-metadata.json <<'JSON'
+          {
+            "id": "chrishotza/rsna-exp-a3-rank-train",
+            "title": "RSNA EXP-A3 A3-RANK training",
+            "code_file": "a3-rank-train.py",
+            "language": "python",
+            "kernel_type": "script",
+            "is_private": true,
+            "enable_gpu": true,
+            "enable_tpu": false,
+            "enable_internet": false,
+            "keywords": ["gpu", "health", "rsna", "auc", "ranking"],
+            "dataset_sources": [
+              "marwanmath/resnet-50-radimagenet-marwan",
+              "pilkwang/rsna-knee-llm-labels"
+            ],
+            "competition_sources": [
+              "rsna-knee-abnormality-detection"
+            ],
+            "model_sources": [],
+            "machine_shape": "NvidiaTeslaT4"
+          }
+          JSON
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("build/a3/kernel-metadata.json")
+          meta=json.loads(p.read_text())
+          assert meta["id"]=="chrishotza/rsna-exp-a3-rank-train"
+          assert meta["enable_internet"] is False
+          assert meta["enable_gpu"] is True
+          assert meta["competition_sources"]==["rsna-knee-abnormality-detection"]
+          print(json.dumps(meta,indent=2))
+          PY
+
+      - name: Push A3 training kernel
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a3 2>&1 | tee out/a3/kernel-push.txt
+          version="$(grep -Eo 'Kernel version [0-9]+' out/a3/kernel-push.txt | grep -Eo '[0-9]+' | tail -n 1)"
+          test -n "$version" || { echo "Could not parse Kaggle kernel version"; exit 1; }
+          printf '%s\n' "$version" > out/a3/kernel-version.txt
+          printf '%s\n' "$KERNEL_ID" > out/a3/kernel-id.txt
+          echo "PUSHED A3 kernel version $version"
+
+      - name: Probe initial Kaggle status
+        run: |
+          set +e
+          kaggle kernels status "$KERNEL_ID" 2>&1 | tee out/a3/kernel-status-initial.txt
+          exit 0
+
+      - name: Archive A3 launch receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a3-rank-training-launch
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            out/a3/**
+            build/a3/kernel-metadata.json
