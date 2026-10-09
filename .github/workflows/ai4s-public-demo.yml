@@ -1,0 +1,51 @@
+name: AI4S public narrated demo on Kaggle
+on:
+  push:
+    branches: [ai4s-public-demo-20261009]
+    paths: ['.github/workflows/ai4s-public-demo.yml']
+permissions:
+  contents: read
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      VIDEO_SOURCE: 'https://storage.googleapis.com/vidiq-user-videos/c38b18f8-a0dd-4e07-a2cc-9a1308978e93/5514514a-3917-486d-850f-0383bace2f9f.mp4?GoogleAccessId=ai-proxy-20261001%40studious-pen-429.vid.io.iam.gserviceaccount.com&Expires=1792192483&Signature=Pvzg227PHkOPlnBz6nvSYUzVqVrMSoHurSPDFKKt6VA1gcSGPTVG%2FiW7zO%2BkTaPJ%2FiQUP9zwt0l7Mc2wjcG%2F7Mw9%2By%2BiM869SqChrFvU7F8vZH1Yn%2FDKtXoXlq6K70vy680nZYEQySgidh9BugnCye8hS5Q5U2bO5pLO8mTwkMyMjc4VErG0UFZZydUuDpyHQmTc7IapdefiBlSD%2BIJV%2FYX2Ht3Ly0oRNHoU45Sjs9WASKkxIf5C9hSvbOwL4ktzsOug50ocMuNQLIxRhPgZuHN5jvexra2Kd3m2lMy6TaROcoXzKDvUyzxjN4atvj20aWj3DxC15o0R6itE3rKBIQ%3D%3D'
+    steps:
+      - name: Verify Kaggle credentials present
+        run: test -n "$KAGGLE_API_TOKEN"
+      - name: Download completed narrated video
+        run: |
+          mkdir -p ai4s_video
+          curl --fail --show-error --silent --location --retry 3 -o ai4s_video/ai4s-v10-narrated.mp4 "$VIDEO_SOURCE"
+          test "$(stat -c%s ai4s_video/ai4s-v10-narrated.mp4)" -gt 1000000
+      - name: Verify content has both video and spoken audio
+        run: |
+          ffprobe -v error -show_entries format=duration:stream=codec_type,codec_name,width,height -of json ai4s_video/ai4s-v10-narrated.mp4 > ai4s_video/video-provenance.json
+          python - <<'PY'
+          import json
+          p=json.load(open("ai4s_video/video-provenance.json"))
+          kinds={x["codec_type"] for x in p["streams"]}
+          d=float(p["format"]["duration"])
+          assert {"video","audio"}<=kinds, f"Audio or video missing: {kinds}"
+          assert 90<=d<=95,d
+          print("OK: video+audio duration",d)
+          PY
+      - name: Prepare public Kaggle dataset metadata
+        run: |
+          python - <<'PY'
+          import json
+          d={"title":"AI4S 2026 Temporal Cellular Phenotype Engine narrated demo V10",
+             "id":"chrishotza/ai4s-2026-temporal-cellular-phenotype-demo",
+             "licenses":[{"name":"CC0-1.0"}],
+             "subtitle":"91-second demo: real CellposeSAM-v2 microscopy predictions and temporal behavior analysis",
+             "description":"AI4S 2026 computational science demonstration. Image-derived CellposeSAM-v2 masks and tracked cells, with a separate internal 168-frame CTC evaluation. Descriptive phenotypes, not independently validated biological cell states. Upstream CTC image/data and model rights are retained by their respective owners."}
+          open("ai4s_video/dataset-metadata.json","w").write(json.dumps(d,indent=2))
+          PY
+      - name: Upload public Kaggle demo dataset
+        run: |
+          python -m pip install -q kaggle
+          kaggle datasets create -p ai4s_video --public --dir-mode skip
+      - name: Output public demo URL
+        run: echo "https://www.kaggle.com/datasets/chrishotza/ai4s-2026-temporal-cellular-phenotype-demo"
