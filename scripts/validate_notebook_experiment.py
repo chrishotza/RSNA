@@ -11,10 +11,8 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
-import io
 import json
 import re
-import tokenize
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,27 +36,14 @@ def set_text(cell: dict[str, Any], value: str) -> None:
 
 
 
-def _without_inline_comment(line: str) -> str:
-    """Remove a Python comment without treating '#' inside a string as a comment."""
-    try:
-        for token in tokenize.generate_tokens(io.StringIO(line + "\\n").readline):
-            if token.type == tokenize.COMMENT:
-                return line[: token.start[1]].rstrip()
-    except (tokenize.TokenError, IndentationError):
-        pass
-    return line.rstrip()
-
-
 def same_python_statement(source_line: str, expected_statement: str) -> bool:
     """Compare first-line Python statements by AST, ignoring whitespace/comments."""
     try:
-        actual = ast.dump(ast.parse(_without_inline_comment(source_line)), include_attributes=False)
+        actual = ast.dump(ast.parse(source_line), include_attributes=False)
         expected = ast.dump(ast.parse(expected_statement), include_attributes=False)
     except SyntaxError:
         return False
     return actual == expected
-
-
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
