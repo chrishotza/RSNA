@@ -2,7 +2,7 @@
   "status": "IN_FLIGHT",
   "experiment_id": "EXP-A1",
   "parent_experiment": "EXP-A0",
-  "baseline_notebook": "notebooks/A0_public_0941/rsna-knee-blend-full.ipynb",
+  "baseline_notebook": "notebooks/A0_public_0941/a0-submitted-freeze.ipynb",
   "candidate_notebook": "notebooks/experiments/EXP-A1-amp-auto-t4.ipynb",
   "changed_cell": 19,
   "before": "AMP_PREF = 'bf16'",
