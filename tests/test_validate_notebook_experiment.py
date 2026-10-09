@@ -12,7 +12,7 @@ class GateTests(unittest.TestCase):
         self.assertFalse(same_python_statement("AMP_PREF = 'fp16'  # note", "AMP_PREF = 'bf16'"))
 
     def test_a1_candidate_matches_frozen_baseline(self):
-        result = validate(ROOT / "notebooks/A0_public_0941/rsna-knee-blend-full.ipynb", ROOT / "notebooks/experiments/EXP-A1-amp-auto-t4.ipynb", "EXP-A1", 19, "AMP_PREF = 'bf16'", "AMP_PREF = 'auto'", None)
+        result = validate(ROOT / "notebooks/A0_public_0941/a0-submitted-freeze.ipynb", ROOT / "notebooks/experiments/EXP-A1-amp-auto-t4.ipynb", "EXP-A1", 19, "AMP_PREF = 'bf16'", "AMP_PREF = 'auto'", None)
         self.assertEqual(result["changed_code_cells"], [19])
         self.assertEqual(result["status"], "PASS")
 
