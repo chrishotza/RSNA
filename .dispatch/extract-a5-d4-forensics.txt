@@ -1,1 +1,1 @@
-extract exact D4 target weights and gold gate rules - execute
+extract exact D4 target weights and gold gate rules - execute v2
