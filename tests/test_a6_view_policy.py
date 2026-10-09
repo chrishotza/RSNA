@@ -42,3 +42,29 @@ def test_matrix_target_specific():
     m=target_acquisition_matrix(rows)
     assert m["PF OA"][0] > m["PF OA"][1]
     assert m["Lateral OA"][1] > 0
+
+
+def test_attention_prior_shape_and_neutral_strength():
+    import numpy as np
+    from src.a6_view_policy import attention_log_prior_from_token_types
+    tt=np.array([[12,8,4,0],[12,12,8,4]])
+    p=attention_log_prior_from_token_types(tt,strength=.35)
+    assert p.shape==(2,12,4)
+    z=attention_log_prior_from_token_types(tt,strength=0.0)
+    assert np.allclose(z,0)
+
+def test_attention_prior_pf_prefers_axial():
+    import numpy as np
+    from src.a6_view_policy import attention_log_prior_from_token_types, TARGETS
+    # axial plain=12, sagittal plain=4
+    p=attention_log_prior_from_token_types(np.array([[12,4]]),strength=.35)
+    q=TARGETS.index("PF OA")
+    assert p[0,q,0] > p[0,q,1]
+
+def test_attention_prior_synovitis_prefers_fluid_fat():
+    import numpy as np
+    from src.a6_view_policy import attention_log_prior_from_token_types, TARGETS
+    # axial fluid+fat=15 vs axial plain=12
+    p=attention_log_prior_from_token_types(np.array([[15,12]]),strength=.35)
+    q=TARGETS.index("Synovitis")
+    assert p[0,q,0] > p[0,q,1]
