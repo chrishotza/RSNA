@@ -17,7 +17,7 @@ permissions:
 jobs:
   submit:
     if: ${{ contains(github.event.head_commit.message, 'RUN EXPERIMENT') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
