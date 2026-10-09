@@ -1,1 +1,1 @@
-run private dry-run for D4-lite + independent ConvNeXt hybrid
+run private dry-run for D4-lite + independent ConvNeXt hybrid v2
