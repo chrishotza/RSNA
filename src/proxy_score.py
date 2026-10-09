@@ -81,6 +81,12 @@ def score_oof_file(
     """Score OOF predictions with one unique row per study and fixed fold provenance."""
     df = pd.read_csv(path)
 
+    provenance = ["StudyInstanceUID", "fold"]
+    missing_provenance = [column for column in provenance if column not in df.columns]
+    if missing_provenance:
+        raise ValueError(f"missing OOF provenance columns: {missing_provenance}")
+    validate_oof(df["StudyInstanceUID"], df["fold"])
+
     true_cols = [target_prefix + label for label in LABELS]
     pred_cols = [pred_prefix + label for label in LABELS]
 
