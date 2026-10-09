@@ -10,6 +10,15 @@ As of 2026-10-09:
 - EXP-A1 has already been submitted once as ref 56988112. Its result is pending; do not resubmit or repush it.
 - The active queue is marked IN_FLIGHT until that result is recorded.
 
+
+### Frozen artifact identity
+
+The file `notebooks/A0_public_0941/rsna-knee-blend-full.ipynb` is the public/source notebook and still contains the expensive `APPENDED ARM BLEND` in cell 23. It is **not** the exact code artifact that produced the measured A0 0.940 score. That evaluation used the cell-23 recovery no-op because those optional arm checkpoints were not available to the submitted kernel.
+
+The measured parent is now frozen separately at `notebooks/A0_public_0941/a0-submitted-freeze.ipynb`: cell 19 keeps `AMP_PREF = 'bf16'`, cell 23 is the exact recovery no-op, and the runtime/data metadata is retained. All future candidate diffs must use this snapshot, not silently rewrite/normalize the public source notebook.
+
+The experiment gate now compares the first Python statement by AST (so inline comments do not cause a false mismatch), freezes execution metadata except the `rsna_experiment` annotation, and rejects content changes outside the declared code cell and the presentation banner. Regression tests were added. GitHub Actions has repeatedly failed before allocating a runner (`runner_id=0`, no steps), so passing CI has **not** yet been observed; do not mark these tests green until an actual run executes them.
+
 ## Why submission is expensive
 
 Kaggle's code-competition workflow privately reruns the notebook end-to-end against a hidden version of the competition data, then checks the output and computes the score. It is not just scoring an existing CSV. The public notebook run and hidden scoring run are separate operations.
