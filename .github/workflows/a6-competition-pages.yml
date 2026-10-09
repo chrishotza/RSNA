@@ -1,0 +1,36 @@
+name: A6 paginate competition files
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-competition-pages.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle
+      - name: Help and paged listing
+        run: |
+          set -euo pipefail
+          kaggle competitions files --help | sed -n '1,220p'
+          mkdir -p out/a6-pages
+          for p in 1 2 3 4 5; do
+            echo "===== PAGE $p ====="
+            kaggle competitions files -c rsna-knee-abnormality-detection --page "$p" --csv > "out/a6-pages/page-${p}.csv" || break
+            echo "rows=$(wc -l < out/a6-pages/page-${p}.csv)"
+            grep -E 'train_series|train\.csv|train_series\.csv' "out/a6-pages/page-${p}.csv" | head -n 20 || true
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a6-competition-pages
+          retention-days: 30
+          path: out/a6-pages/**
