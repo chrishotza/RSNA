@@ -1,0 +1,80 @@
+name: Kaggle EXP-A4 specialist extraction
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/extract-exp-a4-specialists.txt
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+
+      - name: Pull V36 public notebook
+        run: |
+          mkdir -p out/a4-specialists
+          kaggle kernels pull hdhsjdjd/rsna-knee-raptor-v36-w060 -p out/a4-specialists -m
+
+      - name: Extract specialist implementation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+          root=Path("out/a4-specialists")
+          nbp=next(root.glob("*.ipynb"))
+          nb=json.loads(nbp.read_text())
+          code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          lines=code.splitlines()
+          patterns=[
+              r"best_dinov3_finetuned_384",
+              r"loop5_v3_track5a",
+              r"BiomedCLIP",
+              r"biomed",
+              r"open_clip",
+              r"dinov3",
+              r"class .*DINO",
+              r"class .*Bio",
+              r"def .*dino",
+              r"def .*bio",
+              r"load_state_dict",
+              r"timm.create_model",
+              r"create_model_from_pretrained",
+              r"IMG_SIZE",
+              r"N_WIN",
+              r"N_TTA",
+          ]
+          rx=re.compile("|".join(patterns),re.I)
+          hits=[i for i,l in enumerate(lines) if rx.search(l)]
+          keep=set()
+          for i in hits:
+              for j in range(max(0,i-40),min(len(lines),i+80)):
+                  keep.add(j)
+          out=[]
+          last=-2
+          for j in sorted(keep):
+              if j>last+1: out.append("...")
+              out.append(f"{j+1:05d}: {lines[j]}")
+              last=j
+          text="\n".join(out)
+          (root/"specialist-contracts.txt").write_text(text)
+          print(text)
+          PY
+
+      - name: Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a4-specialist-contracts
+          retention-days: 30
+          path: out/a4-specialists/**
