@@ -1,128 +1,116 @@
-# EXP-A3 — UAM-SEQ Independent Reader
+# EXP-A3 — A3-RANK: Rank-First Anatomical Evidence Reader
 
-Status: DESIGN_LOCKED / NOT SUBMITTED
+Status: RADICAL_REDESIGN_LOCKED / IMPLEMENTATION_STARTED / NOT SUBMITTED
 
-## Thesis
+## Objective
 
-A3 is deliberately orthogonal to EXP-A2.
+The competition scores twelve independent ROC-AUC rankings. A3 therefore does not assume that calibrated pointwise classification is the best training geometry.
 
-EXP-A2 changes how existing model families are fused. A3 creates a new image reader whose training objective and study aggregation differ from every currently scored parent component.
+The central question is: for each pathology, which study must rank above which other study, and which MRI evidence justifies that order?
 
-The reader is trained from report-derived soft labels, but **report silence is not treated as a target**.
+A3 is deliberately orthogonal to EXP-A2. A2 routes already-scored families. A3 creates a new image reader, a new supervision geometry and ideally a different error distribution.
 
-## Core intervention
+## Radical hypothesis
 
-### Unstated-Aware Masked supervision
+Three mismatches can cap the usual public recipe:
 
-For each soft target y in [0,1]:
+1. Kaggle scores ranking while most training remains pointwise BCE.
+2. Report silence is numerically encoded even when it is not a true negative.
+3. One generic study representation is asked to serve twelve anatomically different findings.
 
-```
-confidence(y) = min(1, 2 * abs(y - 0.5))
-```
+A3-RANK attacks all three.
 
-Exact 0.5 receives zero weak-label loss.
+## AUC-native supervision
 
-Known competition gold labels override the pseudo-label and receive weight 4.0.
+Weak confidence is min(1, 2*abs(y-0.5)). Exact 0.5 has zero weak confidence.
 
-This makes the training objective explicitly distinguish:
+Pointwise BCE remains an auxiliary stabilizer. The primary objective is within-target pairwise ordering. A pair becomes active only when the pseudo-target gap is at least 0.35. For an ordered pair yi > yj, the model minimizes softplus(-(logit_i-logit_j)/temperature).
 
-- positive evidence;
-- negative evidence;
-- report did not address the finding.
+Gold labels override weak confidence with weight 4.
 
-It is especially important for targets such as Synovitis, Baker's cyst and Fracture where report non-mention is frequent.
+Default objective:
+- 0.35 pointwise masked soft BCE
+- 0.65 confidence-weighted pairwise rank loss
 
-## Visual model
+These coefficients are hypotheses, not protected constants.
 
-Encoder:
-- RadImageNet ResNet-50 weights already used as a legal attached competition dependency.
-- Frozen during the initial feature-bank stage.
-- The independent signal comes from a new sampling and aggregation graph, not another copy of the current Rad head.
+## Unstated means unlabeled
 
-Input representation:
-- DICOM slices sorted by physical geometry (ImagePositionPatient + ImageOrientationPatient projection; InstanceNumber fallback only when geometry is unavailable).
-- 2.5D adjacent slice triplets preserve the pretrained 3-channel interface.
-- deterministic anchors within each acquisition;
-- sequence metadata retained: anatomical plane, fluid-sensitive flag, fat-suppression flag.
+A report-derived 0.5:
+- contributes zero weak BCE;
+- cannot manufacture a weak ranking pair;
+- can later participate in image-only representation learning;
+- can become supervised through gold or a future cross-fitted teacher.
 
-Study representation:
-- token projection;
-- bidirectional GRU over ordered local 2.5D windows;
-- learned acquisition-type embeddings;
-- 12 target queries attend independently over the study token bank;
-- one binary logit per finding.
+This matters especially for report-silent findings.
 
-This differs materially from:
-- rank blending;
-- static target routing;
-- simple global pooling;
-- the current frozen RadImageNet attention head;
-- DINO member averaging.
+## Target-specific anatomical routing
 
-## Training plan
+Pipeline:
 
-1. Attach competition data, `pilkwang/rsna-knee-llm-labels`, and the pinned RadImageNet ResNet-50 artifact.
-2. Build one deterministic frozen feature bank from all 4,407 training studies.
-3. Override pseudo labels with gold labels wherever competition gold is present.
-4. Use deterministic five-fold UID hashing.
-5. Train five small UAM-SEQ heads from the shared frozen feature bank.
-6. Save fold checkpoints plus feature/preprocessing manifest and hashes.
-7. Produce OOF predictions for all train studies.
-8. Score the 58 gold studies separately.
-9. Measure target-wise rank correlation against available parent OOF predictions when they become available.
+DICOM physical geometry -> adjacent 2.5D windows -> frozen RadImageNet features -> ordered tokens -> BiGRU -> twelve target queries.
 
-## Loss
+A3-RANK adds a learned target-by-acquisition-type attention bias. ACL, MCL, menisci, OA, effusion, synovitis, Baker's cyst, contusion and fracture can therefore learn different preferences over plane and sequence type instead of sharing one fixed study pooling rule.
 
-For weak-label row i,target j:
+## Feature-bank contract
 
-```
-w_ij = 2 * abs(y_ij - 0.5)
-loss_ij = w_ij * BCEWithLogits(logit_ij, y_ij)
-```
+Initial encoder: frozen RadImageNet ResNet-50.
 
-For gold cells:
-
-```
-w_ij = 4.0
-y_ij = exact gold 0/1
-```
-
-Loss is normalized by total active weight, not tensor size.
-
-A target with no active supervision in a minibatch contributes zero rather than NaN.
-
-## Determinism contract
-
-- seed = 20261009;
-- deterministic fold assignment from SHA256(StudyInstanceUID);
-- no random test-time sampling;
-- fixed window anchors;
-- physical slice ordering;
+Required preprocessing:
+- slice order from ImagePositionPatient projected onto the normal derived from ImageOrientationPatient;
+- InstanceNumber only as fallback;
+- deterministic adjacent 2.5D triplets;
+- deterministic anchors;
 - fixed resize/crop contract;
-- no stochastic augmentation during feature-bank generation;
-- exact checkpoint SHA256 recorded.
+- no stochastic augmentation during bank generation.
 
-## Promotion criteria to scoring candidate
+Per-token metadata must preserve at least anatomical plane, fluid sensitivity, fat suppression and a stable combined acquisition type ID.
 
-A3 inference is not eligible for competition submit until the training run produces:
+Every bank must retain StudyInstanceUID, SeriesInstanceUID, preprocessing receipt and SHA256.
 
+## Validation that attacks shortcuts
+
+Random UID folds are useful for engineering but are not enough evidence. Promotion requires:
+- deterministic five-fold UID OOF;
+- scanner/site stress validation derived from non-identifying acquisition fingerprints when available;
+- gold-58 sanity metrics;
+- target-wise rank correlation against the parent.
+
+A gain that vanishes under scanner-held-out validation is shortcut-prone, not progress.
+
+## Experimental ladder
+
+A3-0: feature bank correctness.
+A3-1: original pointwise UAM head.
+A3-2: same bank/head, rank-first objective only.
+A3-3: same objective plus target-specific acquisition router.
+A3-4: scanner/site stress validation.
+A3-5: complementarity and conditional gain versus parent families.
+
+The point is causal speed: the exact same frozen bank lets us test the risky claims without repeatedly decoding 570 GB or retraining a backbone.
+
+## Promotion criteria
+
+No scoring candidate until we have:
 - all five fold checkpoints;
-- zero non-finite OOF predictions;
-- complete StudyInstanceUID coverage;
-- macro AUC on the 58 gold rows;
-- per-target AUC on gold where both classes exist;
-- runtime extrapolation to ~1,322 hidden studies;
-- rank-correlation matrix versus the parent when comparable predictions are available.
+- complete OOF UID coverage;
+- zero non-finite outputs;
+- feature/preprocessing hashes;
+- A3-1 versus A3-2 versus A3-3 controlled comparison;
+- per-target OOF AUC;
+- gold-58 sanity metrics;
+- scanner stress result where possible;
+- parent rank-correlation matrix;
+- hidden-test runtime extrapolation.
 
-## Why this can be complementary
+## Falsification
 
-The current parent is dominated by ensembles trained from conventional soft targets and by static study aggregation. A3 changes two causal axes at once on purpose:
+Kill or redesign a claim if pairwise ranking cannot beat pointwise on the same bank, target routing adds no conditional gain, improvements vanish on scanner-held-out validation, predictions are effectively redundant with the parent, or runtime prevents a full hidden pass.
 
-1. **what counts as supervision** — report silence is masked instead of optimized toward 0.5;
-2. **how MRI evidence is represented** — ordered local 2.5D windows are aggregated by a sequential target-query model.
+## Current implementation
 
-This is intended as a new family, not as another member of the existing public ancestry.
+src/a3_uam_seq.py now implements unstated-aware weights, gold override, masked BCE, confidence-weighted pairwise AUC surrogate, the hybrid rank-first objective, BiGRU ordered-window reading and target-specific acquisition routing.
 
-## No competition submission authorization
+The next irreversible step is the deterministic DICOM-to-2.5D-to-RadImageNet feature bank.
 
-This document authorizes training/research preparation only. It does not authorize a competition submission while EXP-A2 is being scored.
+Submission remains unauthorized while EXP-A2 is being scored.
