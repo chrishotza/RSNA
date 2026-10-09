@@ -12,8 +12,8 @@
     0
   ],
   "kernel_id": "chrishotza/rsna-exp-a2-dsr1",
-  "submission_message": "EXP-A2 | DSR-1 specialist router | candidate=8406ffc16c57803bdb684a110aaf47162e982833",
-  "candidate_blob_sha": "8406ffc16c57803bdb684a110aaf47162e982833",
+  "submission_message": "EXP-A2 | DSR-1 specialist router | candidate=5e6cdc9b490c1efcf52a9f93147a208ad78fe3e1",
+  "candidate_blob_sha": "5e6cdc9b490c1efcf52a9f93147a208ad78fe3e1",
   "intervention": "75% target-specific 3-family routed rank blend + 25% median consensus; hard require resgated_top3+d4_swa3",
-  "note": "Bold scoring experiment. One submit only. If save/submit history is ambiguous, recover by exact message and never resubmit automatically."
+  "note": "EXP-A2 v1 reached Kaggle and failed after all model families completed due to NameError `_j` in router receipt parsing. Fixed by importing json as _j. Ready to push v2 exactly once; duplicate guard remains active."
 }
