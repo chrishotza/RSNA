@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 180
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-      KERNEL_ID: chrishotza/rsna-a5-d4-cnxt-hybrid
+      KERNEL_ID: chrishotza/rsna-exp-a5-frontier-0944
     steps:
       - uses: actions/checkout@v4
         with:
