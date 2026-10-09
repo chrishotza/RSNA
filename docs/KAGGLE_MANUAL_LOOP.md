@@ -42,15 +42,13 @@ Do not modify the inference path for this calibration submission.
 
 Record the same fields as A0.
 
-### EXP-A2: reserved for the next score-directed candidate
+### EXP-A2: independent-reader complementarity (research only)
 
-One geometry change only.
+This is blocked until complete study-keyed OOF predictions, per-label rank correlation, and nested-fold blend evidence are available. No model is queued and no score gain is claimed.
 
-Do not combine it with label, architecture or TTA changes.
+### EXP-A3: reserved for a later intervention
 
-### A3: controlled change #2
-
-One supervision/training change only.
+Do not assign this ID until EXP-A2 has been measured and the next question is selected.
 
 ## Submission discipline
 
@@ -60,7 +58,7 @@ Every notebook gets an experiment ID in its title and in the output metadata.
 
 Example:
 
-`RSNA EXP-A2 geometry-150mm`
+`RSNA EXP-A2 independent-reader`
 
 ## Calibration rule
 
