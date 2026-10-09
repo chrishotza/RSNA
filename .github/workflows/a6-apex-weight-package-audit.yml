@@ -9,7 +9,7 @@ on:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
     steps:
@@ -18,50 +18,10 @@ jobs:
           python-version: "3.11"
       - name: Install
         run: python -m pip install --upgrade kaggle
-      - name: List publication files
+      - name: List files
         run: |
-          set -euo pipefail
           mkdir -p out/a6-apex-pkg
-          kaggle datasets files -d nartaa/rsna-knee-publication-swa-weights-20261007 --csv             | tee out/a6-apex-pkg/files.csv
-      - name: Inspect small provenance files
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import csv,subprocess,os,json
-          from pathlib import Path
-          rows=list(csv.DictReader(open("out/a6-apex-pkg/files.csv")))
-          picked=[]
-          for r in rows:
-              name=r.get("name","")
-              size=int(float(r.get("size",0) or 0))
-              if size <= 5_000_000 and any(name.lower().endswith(x) for x in [".json",".csv",".txt",".md",".yaml",".yml"]):
-                  picked.append(name)
-          print("small metadata",picked)
-          for name in picked[:80]:
-              subprocess.run([
-                  "kaggle","datasets","download","-d","nartaa/rsna-knee-publication-swa-weights-20261007",
-                  "-f",name,"-p","out/a6-apex-pkg"
-              ],check=False)
-          PY
-          find out/a6-apex-pkg -maxdepth 3 -type f -printf '%P	%s
-' | sort
-      - name: Preview metadata
-        run: |
-          python - <<'PY'
-          import json,zipfile
-          from pathlib import Path
-          out={}
-          root=Path("out/a6-apex-pkg")
-          for z in root.glob("*.zip"):
-              try:
-                  with zipfile.ZipFile(z) as f: f.extractall(root/"unzipped")
-              except Exception: pass
-          for p in list(root.rglob("*.json"))+list(root.rglob("*.csv"))+list(root.rglob("*.txt"))+list(root.rglob("*.md")):
-              if p.stat().st_size<5_000_000:
-                  out[str(p.relative_to(root))]=p.read_text(errors="replace")[:50000]
-          Path("out/a6-apex-pkg/metadata_preview.json").write_text(json.dumps(out,indent=2))
-          print(json.dumps(out,indent=2)[:120000])
-          PY
+          kaggle datasets files -d nartaa/rsna-knee-publication-swa-weights-20261007 --csv | tee out/a6-apex-pkg/files.csv
       - uses: actions/upload-artifact@v4
         with:
           name: a6-apex-weight-package-audit
