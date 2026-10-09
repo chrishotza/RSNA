@@ -1,0 +1,31 @@
+{
+  "status": "RESEARCH_BLOCKED",
+  "experiment_id": "EXP-A2",
+  "parent_experiment": "EXP-A0",
+  "parent_artifact": "notebooks/A0_public_0941/a0-submitted-freeze.ipynb",
+  "objective": "Identify one reproducible change that can improve macro ROC-AUC without reusing the leaderboard as a debugger.",
+  "priority": "Audit and reproduce ANCHOR-B (Aman Atar v6.0.0 A2PA, reported public 0.943) before choosing a score intervention.",
+  "external_anchor": {
+    "kaggle_slug": "amanatar/rsna-knee-abnormality-detection",
+    "reported_public_lb": 0.943,
+    "visible_title": "RSNA Knee Abnormality Detection — Beyond the Public SOTA · FINAL Build (v6.0.0 A2PA)",
+    "status": "SOURCE_NOT_YET_CAPTURED"
+  },
+  "already_verified_in_parent": {
+    "rank_ties": "average ranks are already used by rsna_rank01 / rsna_rankpct",
+    "raptor_contracts": [
+      "maxspan-v5: 336 px, span 0.02-0.98, 62 windows",
+      "native384dense-v10: 384 px, span 0.02-0.98, 62 windows",
+      "native384-v8: 384 px, span 0.06-0.94, 42 windows"
+    ],
+    "implication": "Do not copy generic preprocessing fixes from other public notebooks without matching the exact checkpoint contract."
+  },
+  "blockers": [
+    "Record official EXP-A1 ref 56988112 score and diagnostics.",
+    "Capture exact ANCHOR-B source/version and dependency/input list.",
+    "Diff ANCHOR-B preprocessing, models, routing and blend against frozen A0.",
+    "Select one attributable intervention; do not combine architecture, geometry and weights in one experiment.",
+    "Obtain local/OOF or paired evidence where possible, plus runtime/full-coverage checks."
+  ],
+  "submit_allowed": false
+}
