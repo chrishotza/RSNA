@@ -1,0 +1,78 @@
+name: A5 frontier discovery
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/discover-a5-frontier.txt
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+
+      - name: Pull frontier notebook and metadata
+        run: |
+          set -euo pipefail
+          mkdir -p out/a5/frontier
+          kaggle kernels pull "$KERNEL_ID" -p out/a5/frontier -m
+          echo "=== FILES ==="
+          find out/a5/frontier -maxdepth 3 -type f -printf '%P\t%s bytes\n' | sort
+          echo "=== METADATA ==="
+          cat out/a5/frontier/kernel-metadata.json || true
+
+      - name: Static architecture audit
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          root=Path("out/a5/frontier")
+          files=list(root.glob("*.ipynb"))+list(root.glob("*.py"))
+          if not files:
+              raise SystemExit("no notebook source pulled")
+          p=files[0]
+          if p.suffix==".ipynb":
+              nb=json.loads(p.read_text(errors="replace"))
+              code="\n".join("".join(c.get("source",[])) for c in nb.get("cells",[]) if c.get("cell_type")=="code")
+          else:
+              code=p.read_text(errors="replace")
+          Path("out/a5/frontier/source.py").write_text(code)
+          pats=[
+            r"convnext[^\n]{0,160}",
+            r"timm\.create_model[^\n]{0,220}",
+            r"checkpoint[^\n]{0,220}",
+            r"weights[^\n]{0,220}",
+            r"dataset[^\n]{0,220}",
+            r"model_sources[^\n]{0,220}",
+            r"dataset_sources[^\n]{0,220}",
+            r"rank[^\n]{0,220}",
+            r"blend[^\n]{0,220}",
+            r"window[^\n]{0,220}",
+            r"slice[^\n]{0,220}",
+            r"crop[^\n]{0,220}",
+            r"Anatomical_Plane[^\n]{0,220}",
+            r"Fluid_Sensitive[^\n]{0,220}",
+          ]
+          report=[]
+          for pat in pats:
+              ms=re.findall(pat,code,re.I)
+              if ms:
+                  report.append("\n## "+pat+"\n" + "\n".join(ms[:80]))
+          Path("out/a5/frontier/static-audit.txt").write_text("\n".join(report))
+          print("\n".join(report)[:30000])
+          PY
+
+      - name: Archive discovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-frontier-discovery
+          retention-days: 30
+          path: out/a5/frontier/**
