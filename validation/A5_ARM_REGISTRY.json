@@ -1,0 +1,135 @@
+{
+  "schema": "rsna_a5_arm_registry_v1",
+  "policy": {
+    "gold58_gate_requires_clean_provenance": true,
+    "contaminated_or_unknown_arms_may_be_public_parent_only": true,
+    "target_specialist_selection_requires_oof_or_never_trained_on_gold": true
+  },
+  "arms": {
+    "D4_LITE_0945": {
+      "role": "PUBLIC_PARENT_ONLY",
+      "public_lb": 0.945,
+      "provenance": "UNKNOWN_OR_CONTAMINATION_RISK",
+      "gold58_allowed": false,
+      "source": "pjmathematician/rsna-knee-d4-lite",
+      "notes": [
+        "Contains historical_parent_gold58 references and training-gold grid references.",
+        "Use as public parent because leaderboard evidence is real; do not use its gold58 numbers to select target swaps."
+      ]
+    },
+    "CONVNEXT_2P5D_0944_READER": {
+      "role": "CLEAN_SPECIALIST",
+      "public_lb_standalone": 0.929,
+      "public_lb_blended": 0.944,
+      "provenance": "CLEAN_DECLARED_NEVER_TRAINED_ON_GOLD58",
+      "gold58_allowed": true,
+      "source": "goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944",
+      "gold58_macro": 0.911,
+      "per_target_auc": {
+        "ACL": 0.965,
+        "MCL": 0.946,
+        "Medial Meniscus": 0.963,
+        "Lateral Meniscus": 0.889,
+        "Medial OA": 0.966,
+        "Lateral OA": 0.865,
+        "PF OA": 0.843,
+        "Effusion": 0.88,
+        "Synovitis": 0.761,
+        "Baker's": 0.976,
+        "Contusion": 0.966,
+        "Fracture": 0.911
+      }
+    },
+    "CLEAN_COATNET_PIPELINE": {
+      "role": "CLEAN_SPECIALIST",
+      "public_lb": 0.939,
+      "provenance": "CLEAN_HOLDOUT_DOCUMENTED",
+      "gold58_allowed": true,
+      "source": "TranBaDat2607/RSNA-Knee-Abnormality-Detection",
+      "gold58_macro": 0.93,
+      "notes": [
+        "v5+v10+v8 equal plus residual-gated 0.4.",
+        "Public repo explicitly states every checkpoint was trained without the 58 gold studies."
+      ]
+    },
+    "NTEJAS_DUAL_RESNET": {
+      "role": "CLEAN_SPECIALIST",
+      "public_lb": 0.941,
+      "provenance": "OOF_5FOLD_DOCUMENTED",
+      "gold58_allowed": true,
+      "source": "NTejas-1/RSNA-Knee-Abnormality-Detection",
+      "gold58_macro": 0.9078,
+      "mean_rank_corr_between_internal_arms": 0.756,
+      "per_target_auc": {
+        "ACL": 0.912,
+        "MCL": 0.846,
+        "Medial Meniscus": 0.934,
+        "Lateral Meniscus": 0.852,
+        "Medial OA": 0.947,
+        "Lateral OA": 0.857,
+        "PF OA": 0.81,
+        "Effusion": 0.957,
+        "Synovitis": 0.84,
+        "Baker's": 0.913,
+        "Contusion": 0.947,
+        "Fracture": 0.932
+      },
+      "recommended_targets": [
+        "Effusion",
+        "Synovitis",
+        "Contusion",
+        "Fracture",
+        "Medial OA"
+      ]
+    }
+  },
+  "current_target_map": {
+    "ACL": [
+      "CONVNEXT_2P5D_0944_READER"
+    ],
+    "MCL": [
+      "CONVNEXT_2P5D_0944_READER"
+    ],
+    "Medial Meniscus": [
+      "CONVNEXT_2P5D_0944_READER"
+    ],
+    "Lateral Meniscus": [
+      "CONVNEXT_2P5D_0944_READER",
+      "CLEAN_COATNET_PIPELINE"
+    ],
+    "Medial OA": [
+      "CONVNEXT_2P5D_0944_READER",
+      "NTEJAS_DUAL_RESNET",
+      "CLEAN_COATNET_PIPELINE"
+    ],
+    "Lateral OA": [
+      "CLEAN_COATNET_PIPELINE",
+      "CONVNEXT_2P5D_0944_READER"
+    ],
+    "PF OA": [
+      "CLEAN_COATNET_PIPELINE"
+    ],
+    "Effusion": [
+      "NTEJAS_DUAL_RESNET",
+      "CLEAN_COATNET_PIPELINE"
+    ],
+    "Synovitis": [
+      "NTEJAS_DUAL_RESNET",
+      "CLEAN_COATNET_PIPELINE"
+    ],
+    "Baker's": [
+      "CONVNEXT_2P5D_0944_READER",
+      "NTEJAS_DUAL_RESNET"
+    ],
+    "Contusion": [
+      "CONVNEXT_2P5D_0944_READER",
+      "NTEJAS_DUAL_RESNET",
+      "CLEAN_COATNET_PIPELINE"
+    ],
+    "Fracture": [
+      "NTEJAS_DUAL_RESNET",
+      "CONVNEXT_2P5D_0944_READER",
+      "CLEAN_COATNET_PIPELINE"
+    ]
+  }
+}
