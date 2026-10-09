@@ -1,0 +1,88 @@
+name: RSNA read-only submission status
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - ".dispatch/check-submission.txt"
+
+concurrency:
+  group: rsna-read-only-submission-status
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    if: ${{ contains(github.event.head_commit.message, 'CHECK SUBMISSION') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Read current experiment submission status (read-only)
+        run: |
+          set -euo pipefail
+          mkdir -p out/status
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path("experiments/queue/active.json").read_text(encoding="utf-8"))
+          ref=str(q.get("submission_ref","")).strip()
+          if not ref.isdigit():
+              raise SystemExit(f"No numeric submission_ref in active queue: {ref!r}")
+          Path("out/status/ref.txt").write_text(ref+"\n",encoding="utf-8")
+          Path("out/status/queue-snapshot.json").write_text(json.dumps(q,indent=2),encoding="utf-8")
+          print("Experiment:",q.get("experiment_id"))
+          print("Submission ref:",ref)
+          print("This is a READ-ONLY check; no kernel push or competitions submit is called.")
+          PY
+
+          kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/status/submissions.csv
+
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+          ref=Path("out/status/ref.txt").read_text().strip()
+          rows=list(csv.DictReader(Path("out/status/submissions.csv").open()))
+          def field(row,*names):
+              low={str(k).lower():v for k,v in row.items()}
+              for name in names:
+                  value=low.get(name.lower())
+                  if value is not None and str(value).strip():
+                      return str(value).strip()
+              return ""
+          matches=[r for r in rows if field(r,"ref","id","submissionref")==ref]
+          if not matches:
+              raise SystemExit(f"Submission ref {ref} not present in current Kaggle history response.")
+          row=matches[-1]
+          out={
+              "ref":ref,
+              "status":field(row,"status","submissionstatus"),
+              "public_score":field(row,"publicScore","public_score"),
+              "private_score":field(row,"privateScore","private_score"),
+              "date":field(row,"date","submitted","submissiondate"),
+              "description":field(row,"description","message"),
+          }
+          Path("out/status/submission-status.json").write_text(json.dumps(out,indent=2),encoding="utf-8")
+          print(json.dumps(out,indent=2))
+          PY
+
+      - name: Archive read-only status evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsna-submission-status
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/status/**
