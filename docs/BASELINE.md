@@ -18,6 +18,8 @@ Reported public leaderboard: 0.941
 
 Reported parent public-reference ensemble: 0.940
 
+Our measured A0 also scored 0.940 across refs `56904847`, `56904871`, `56906382` and `56906411`; these are repeated evaluations of one kernel version, not independent experiments. The exact tested artifact is `notebooks/A0_public_0941/a0-submitted-freeze.ipynb`. The source notebook still contains an experimental cell-23 arm blend and is not the measured artifact.
+
 Reported components include RadImageNet ResNet50, ImageNet ResNet50, gated attention pooling, six fixed MRI slots, physical-FOV cropping, laterality normalization, soft report-derived targets, five-fold training and rank-based blending.
 
 ## Important negative result
