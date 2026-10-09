@@ -24,7 +24,7 @@ jobs:
       - name: Install minimal validation stack
         run: python -m pip install --upgrade numpy scikit-learn pytest
       - name: Unit tests
-        run: python -m pytest -q tests/test_validate_a5_candidate.py tests/test_update_validation_ledger.py tests/test_validate_target_swaps.py tests/test_check_arm_provenance.py
+        run: python -m pytest -q tests/test_validate_a5_candidate.py tests/test_update_validation_ledger.py tests/test_validate_target_swaps.py tests/test_check_arm_provenance.py tests/test_build_a5_d4_cnxt_hybrid.py
       - name: Synthetic promotion smoke
         run: |
           python - <<'PY'
