@@ -27,10 +27,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Kaggle CLI
+      - name: Install Kaggle CLI with no-run support
         run: |
-          python -m pip install --upgrade kaggle
+          python -m pip install --upgrade "git+https://github.com/Kaggle/kaggle-cli.git"
           kaggle --version
+          kaggle kernels push --help | grep -F -- "--no-run"
 
       - name: Build A3 competition notebook
         run: |
