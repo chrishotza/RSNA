@@ -6,6 +6,7 @@ on:
       - research
     paths:
       - .dispatch/run-a5-eam-gold58.txt
+      - .dispatch/run-a5-eam-gold58-v2.txt
 
 jobs:
   eval:
