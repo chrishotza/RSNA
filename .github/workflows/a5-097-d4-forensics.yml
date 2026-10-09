@@ -1,0 +1,75 @@
+name: A5 097 D4 forensic extraction
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/extract-a5-d4-forensics.txt
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: Pull sources
+        run: |
+          set -euo pipefail
+          mkdir -p out/d4 out/gate
+          kaggle kernels pull pjmathematician/rsna-knee-d4-lite -p out/d4 -m
+          kaggle kernels pull dariushafshar/rsna-blend-gate-harness-58-golds-12-targets -p out/gate -m
+      - name: Extract exact strategy
+        run: |
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+          def code(root):
+              p=next(Path(root).glob("*.ipynb"))
+              nb=json.loads(p.read_text())
+              return "\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          d4=code("out/d4")
+          gate=code("out/gate")
+
+          needles=[
+              "WEIGHT_BY_TARGET",
+              "_coatnet_weight",
+              "weight = {label: 0.60",
+              "weight.update({",
+              "_OV_W",
+              "_w2",
+              "TOTAL_OURS",
+              "d4_zones",
+              "depthzone",
+              "global96",
+              "swa",
+              "blend_available",
+              "blend_legacy_frontier_and_soft",
+              "public_frontier_members",
+              "family_reduction",
+          ]
+          print("===== D4 EXACT CONTEXT =====")
+          for n in needles:
+              pos=0;k=0
+              while True:
+                  pos=d4.find(n,pos)
+                  if pos<0 or k>=12: break
+                  print(f"\n--- {n} @ {pos} ---")
+                  print(d4[max(0,pos-1200):min(len(d4),pos+3500)])
+                  pos+=len(n);k+=1
+
+          print("\n===== GOLD GATE CONSTANTS / RULES =====")
+          pats=[
+            r"BOOT[^\n]{0,300}",r"ALPHA[^\n]{0,300}",r"WIN[^\n]{0,300}",
+            r"selected[^\n]{0,400}",r"holm[^\n]{0,500}",r"fold[^\n]{0,500}",
+            r"swap[^\n]{0,500}",r"bootstrap[^\n]{0,500}",r"DEMO_[^\n]{0,300}"
+          ]
+          for pat in pats:
+              ms=re.findall(pat,gate,re.I)
+              if ms:
+                  print("\n###",pat)
+                  print("\n".join(ms[:150]))
+          PY
