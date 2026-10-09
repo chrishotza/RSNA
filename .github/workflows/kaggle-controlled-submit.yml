@@ -1,0 +1,299 @@
+name: RSNA controlled single experiment submission
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - ".dispatch/run-experiment.txt"
+
+concurrency:
+  group: rsna-controlled-competition-submission
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  submit:
+    if: ${{ contains(github.event.head_commit.message, 'RUN EXPERIMENT') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: chrishotza/RSNA
+      BRANCH: research
+      COMPETITION: rsna-knee-abnormality-detection
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: research
+          token: ${{ github.token }}
+
+      - name: Load queue and require explicit READY state
+        id: queue
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          p=Path("experiments/queue/active.json")
+          q=json.loads(p.read_text(encoding="utf-8"))
+          required=("experiment_id","status","baseline_notebook","candidate_notebook",
+                    "changed_cell","before","after","kernel_id","submission_message")
+          missing=[k for k in required if k not in q]
+          if missing:
+              raise SystemExit(f"Queue config missing required fields: {missing}")
+          print("Experiment:",q["experiment_id"])
+          print("Queue status:",q["status"])
+          if q["status"] != "READY":
+              print("STOP: queue is not READY; no Kaggle calls will be made.")
+              Path(os.environ["GITHUB_OUTPUT"]).write_text("ready=false\n",encoding="utf-8")
+              sys.exit(0)
+          for key in required:
+              value=str(q[key])
+              if "\n" in value or "\r" in value:
+                  raise SystemExit(f"Queue field {key} contains a newline")
+          outputs=[
+              ("ready","true"),
+              ("experiment_id",q["experiment_id"]),
+              ("baseline_notebook",q["baseline_notebook"]),
+              ("candidate_notebook",q["candidate_notebook"]),
+              ("changed_cell",str(q["changed_cell"])),
+              ("before",q["before"]),
+              ("after",q["after"]),
+              ("kernel_id",q["kernel_id"]),
+              ("submission_message",q["submission_message"]),
+          ]
+          Path(os.environ["GITHUB_OUTPUT"]).write_text(
+              "".join(f"{k}={v}\n" for k,v in outputs),encoding="utf-8")
+          PY
+
+      - name: Validate experiment diff and Python syntax
+        if: steps.queue.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p out/experiment build/experiment
+          python scripts/validate_notebook_experiment.py \
+            --baseline "${{ steps.queue.outputs.baseline_notebook }}" \
+            --candidate "${{ steps.queue.outputs.candidate_notebook }}" \
+            --experiment-id "${{ steps.queue.outputs.experiment_id }}" \
+            --changed-cell "${{ steps.queue.outputs.changed_cell }}" \
+            --before "${{ steps.queue.outputs.before }}" \
+            --after "${{ steps.queue.outputs.after }}" \
+            --output out/experiment/validation.json
+
+      - name: Prepare kernel metadata without executing the notebook
+        if: steps.queue.outputs.ready == 'true'
+        env:
+          KERNEL_ID: ${{ steps.queue.outputs.kernel_id }}
+          CANDIDATE_NOTEBOOK: ${{ steps.queue.outputs.candidate_notebook }}
+        run: |
+          set -euo pipefail
+          cp "$CANDIDATE_NOTEBOOK" build/experiment/candidate.ipynb
+          cp notebooks/A0_public_0941/kernel-metadata.json build/experiment/kernel-metadata.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path("build/experiment/kernel-metadata.json")
+          meta=json.loads(p.read_text(encoding="utf-8"))
+          kernel=os.environ["KERNEL_ID"]
+          if "/" not in kernel:
+              raise SystemExit("kernel_id must be owner/slug")
+          meta["id"]=kernel
+          meta["title"]=kernel.split("/",1)[1]
+          meta["code_file"]="candidate.ipynb"
+          meta["is_private"]=True
+          meta["enable_gpu"]=True
+          meta["enable_internet"]=False
+          meta["machine_shape"]="NvidiaTeslaT4"
+          p.write_text(json.dumps(meta,indent=2)+"\n",encoding="utf-8")
+          print("Prepared offline-save bundle for",kernel)
+          PY
+
+      - name: Install Kaggle CLI
+        if: steps.queue.outputs.ready == 'true'
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Duplicate-submission guard before kernel save
+        if: steps.queue.outputs.ready == 'true'
+        id: duplicate
+        env:
+          TARGET_MESSAGE: ${{ steps.queue.outputs.submission_message }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/experiment
+          kaggle competitions submissions "$COMPETITION" -v -q > out/experiment/submissions-preflight.csv
+          python - <<'PY'
+          import csv, os
+          from pathlib import Path
+          target=os.environ["TARGET_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/experiment/submissions-preflight.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if matches:
+              print("STOP: exact submission message already exists. No version will be pushed.")
+              for r in matches: print(r)
+              Path(os.environ["GITHUB_OUTPUT"]).write_text("duplicate=true\n",encoding="utf-8")
+          else:
+              print("No matching submission exists; duplicate guard passed.")
+              Path(os.environ["GITHUB_OUTPUT"]).write_text("duplicate=false\n",encoding="utf-8")
+          PY
+
+      - name: Save version without running it
+        if: steps.queue.outputs.ready == 'true' && steps.duplicate.outputs.duplicate == 'false'
+        id: save
+        run: |
+          set -euo pipefail
+          set +e
+          kaggle kernels push -p build/experiment --no-run 2>&1 | tee out/experiment/kernel-save.txt
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "Kernel save failed. No competition submission was attempted."
+            exit "$rc"
+          fi
+          version="$(sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' out/experiment/kernel-save.txt | tail -n 1)"
+          if [ -z "$version" ]; then
+            echo "Cannot identify saved kernel version. Stop before submit; never retry submit automatically."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Saved kernel version $version without executing it."
+
+      - name: Final duplicate guard and exactly one competition submission
+        if: steps.queue.outputs.ready == 'true' && steps.duplicate.outputs.duplicate == 'false'
+        id: submit_once
+        env:
+          KERNEL_ID: ${{ steps.queue.outputs.kernel_id }}
+          KERNEL_VERSION: ${{ steps.save.outputs.version }}
+          TARGET_MESSAGE: ${{ steps.queue.outputs.submission_message }}
+          EXPERIMENT_ID: ${{ steps.queue.outputs.experiment_id }}
+        run: |
+          set -euo pipefail
+          kaggle competitions submissions "$COMPETITION" -v -q > out/experiment/submissions-before-submit.csv
+
+          python - <<'PY'
+          import csv, os, sys
+          from pathlib import Path
+          target=os.environ["TARGET_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/experiment/submissions-before-submit.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if matches:
+              print("STOP: duplicate appeared before submit. Will not call competitions submit.")
+              print(matches)
+              sys.exit(9)
+          PY
+
+          # This is the only competition-submit invocation in the workflow.
+          set +e
+          kaggle competitions submit "$COMPETITION" \
+            -k "$KERNEL_ID" \
+            -v "$KERNEL_VERSION" \
+            -f submission.csv \
+            -m "$TARGET_MESSAGE" \
+            2>&1 | tee out/experiment/submit-once.txt
+          submit_rc=${PIPESTATUS[0]}
+          set -e
+          echo "submit_rc=$submit_rc" | tee out/experiment/submit-return-code.txt
+
+          # Recover ref from history; never repeat the submit call.
+          found=false
+          for attempt in $(seq 1 10); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/experiment/submissions-after-submit.csv
+            set +e
+            python - <<'PY'
+          import csv, json, os, sys
+          from pathlib import Path
+          target=os.environ["TARGET_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/experiment/submissions-after-submit.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if not matches:
+              sys.exit(10)
+          def key(r):
+              return str(r.get("date","") or r.get("submitted","") or "")+"|"+str(r.get("ref","") or r.get("id",""))
+          row=sorted(matches,key=key)[-1]
+          ref=str(row.get("ref","") or row.get("id","")).strip()
+          if not ref.isdigit():
+              print("Matching row has no numeric ref:",row)
+              sys.exit(11)
+          Path("out/experiment/submit-result.json").write_text(
+              json.dumps({"experiment_id":os.environ["EXPERIMENT_ID"],"kernel":os.environ["KERNEL_ID"],
+                          "kernel_version":os.environ["KERNEL_VERSION"],"submission_ref":ref,
+                          "row":row},indent=2,ensure_ascii=False),encoding="utf-8")
+          Path(os.environ["GITHUB_OUTPUT"]).write_text(f"ref={ref}\n",encoding="utf-8")
+          print("Created single submission ref:",ref,"status:",row.get("status"))
+          PY
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            if [ "$rc" -ne 10 ]; then echo "Cannot safely recover ref (rc=$rc). Do not resubmit."; exit 1; fi
+            sleep 15
+          done
+          if [ "$found" != true ]; then
+            echo "Submission command was invoked once; no ref visible yet. Do not resubmit."
+            exit 1
+          fi
+          echo "SUBMISSION_REF=${{ steps.submit_once.outputs.ref }}"
+
+      - name: Persist in-flight ref to experiment queue
+        if: steps.submit_once.outputs.ref != ''
+        env:
+          REF: ${{ steps.submit_once.outputs.ref }}
+          VERSION: ${{ steps.save.outputs.version }}
+          EXPERIMENT_ID: ${{ steps.queue.outputs.experiment_id }}
+          KERNEL_ID: ${{ steps.queue.outputs.kernel_id }}
+          SUBMISSION_MESSAGE: ${{ steps.queue.outputs.submission_message }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, json, os, urllib.request
+          from pathlib import Path
+
+          api="https://api.github.com/repos/"+os.environ["REPOSITORY"]+"/contents/experiments/queue/active.json"
+          headers={
+              "Authorization":"Bearer "+os.environ["GH_TOKEN"],
+              "Accept":"application/vnd.github+json",
+              "X-GitHub-Api-Version":"2022-11-28",
+              "User-Agent":"rsna-controlled-experiment-gate",
+          }
+          req=urllib.request.Request(api,headers=headers)
+          with urllib.request.urlopen(req,timeout=20) as response:
+              current=json.loads(response.read().decode("utf-8"))
+          q=json.loads(base64.b64decode(current["content"]).decode("utf-8"))
+          if q.get("experiment_id") != os.environ["EXPERIMENT_ID"]:
+              raise SystemExit("Queue changed during the run; do not overwrite another experiment.")
+          q.update({
+              "status":"IN_FLIGHT",
+              "submission_ref":os.environ["REF"],
+              "kernel_id":os.environ["KERNEL_ID"],
+              "kernel_version":int(os.environ["VERSION"]),
+              "submission_message":os.environ["SUBMISSION_MESSAGE"],
+          })
+          body=json.dumps({
+              "message":"Record single issued Kaggle submission and ref",
+              "content":base64.b64encode((json.dumps(q,indent=2)+"\n").encode()).decode(),
+              "sha":current["sha"],
+              "branch":os.environ["BRANCH"],
+          }).encode()
+          update_headers={**headers,"Content-Type":"application/json"}
+          update=urllib.request.Request(api,data=body,headers=update_headers,method="PUT")
+          with urllib.request.urlopen(update,timeout=20) as response:
+              result=json.loads(response.read().decode("utf-8"))
+          print("Persisted in-flight ref",os.environ["REF"],"commit",result["commit"]["sha"])
+          PY
+
+      - name: Archive one-run evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: controlled-kaggle-experiment
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            out/experiment/**
+            build/experiment/**
