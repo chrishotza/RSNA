@@ -1,0 +1,80 @@
+name: Kaggle EXP-A4 final contract extraction
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/extract-exp-a4-final.txt
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install --upgrade kaggle
+
+      - name: Pull exact public notebooks
+        run: |
+          mkdir -p out/a4-final/raptor out/a4-final/v36
+          kaggle kernels pull dreaddevelopment/knee-mri-twelve-findings-from-a-single-model -p out/a4-final/raptor -m
+          kaggle kernels pull hdhsjdjd/rsna-knee-raptor-v36-w060 -p out/a4-final/v36 -m
+
+      - name: Extract exact classes and constants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+
+          def code_from(root):
+              p=next(Path(root).glob("*.ipynb"),None)
+              if p:
+                  nb=json.loads(p.read_text())
+                  return "\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+              p=next(Path(root).glob("*.py"))
+              return p.read_text(errors="replace")
+
+          def extract_blocks(code,names):
+              lines=code.splitlines()
+              out=[]
+              for name in names:
+                  rx=re.compile(name,re.I)
+                  hits=[i for i,l in enumerate(lines) if rx.search(l)]
+                  out.append(f"===== {name} =====")
+                  for i in hits:
+                      lo=max(0,i-25); hi=min(len(lines),i+120)
+                      out.extend(f"{j+1:05d}: {lines[j]}" for j in range(lo,hi))
+              return "\n".join(out)
+
+          rap=code_from("out/a4-final/raptor")
+          v36=code_from("out/a4-final/v36")
+          text=extract_blocks(rap,[
+              r"^IMG\s*=",r"^CROP_MM\s*=",r"^SLOTS\s*=",
+              r"class RaptorClassifier",r"def build_backbone",r"def load_model",
+              r"def _make_reader",r"def build_study",r"def infer_probs"
+          ])
+          text+="\n"+extract_blocks(v36,[
+              r"class MaskGuidedSpatialAttention8Ch",
+              r"class BiomedCLIPAlignmentHead",
+              r"class Track5A_BiomedCLIPCrossViewModel",
+              r"class SlotHeadAttention",
+              r"class RSNADinov2SlotModel",
+              r"def read_dicom_volume",
+              r"class RSNAKnee5WindowDataset",
+              r"_N_WIN",r"_N_TTA"
+          ])
+          Path("out/a4-final/contracts.txt").write_text(text)
+          print(text)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exp-a4-final-contracts
+          retention-days: 30
+          path: out/a4-final/**
