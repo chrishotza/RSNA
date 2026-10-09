@@ -93,6 +93,11 @@ A candidate that only wins P1 but does not generalize to other evidence is not p
 
 Kaggle participants have explicitly reported cases where label-set quality measured on 58 gold studies did not reliably predict LB performance, and cases where changing models caused validation/LB correlation to disappear. That is why the calibration layer is mandatory rather than optional.
 
+
+## Strict OOF inputs
+
+OOF files require unique, non-blank `StudyInstanceUID` values and non-negative integer `fold` IDs. If a target is known, its prediction must be finite; the scorer now raises instead of silently omitting a failed prediction from AUC. Only `NaN` targets are treated as unaddressed cells. Infinite targets are rejected.
+
 ## Exact metric
 
 For each of the 12 columns:
