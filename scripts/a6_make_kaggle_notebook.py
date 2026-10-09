@@ -26,8 +26,8 @@ cells=[
 "  return matches[0]\n",
 "train=locate('train.csv').parent\n",
 "weights=locate('raptor_ft_coatnet_v5_full_swa.pt')\n",
-"cmd=[sys.executable,'/kaggle/working/a6_export.py','--competition-root',str(train),'--weights',str(weights),'--source-root','/kaggle/working','--output','/kaggle/working/a6_result','--limit','3']\n",
-"print('Running A6 smoke on 3 studies; no competition submission')\n",
+"cmd=[sys.executable,'/kaggle/working/a6_export.py','--competition-root',str(train),'--weights',str(weights),'--source-root','/kaggle/working','--output','/kaggle/working/a6_result','--limit','0']\n",
+"print('Running A6 full 4349-study teacher extraction; no competition submission')\n",
 "subprocess.run(cmd,check=True)\n"]}
 ]
 notebook={"cells":cells,"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"},"language_info":{"name":"python"}},"nbformat":4,"nbformat_minor":5}
