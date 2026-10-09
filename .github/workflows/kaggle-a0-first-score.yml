@@ -10,7 +10,7 @@ on:
 
 concurrency:
   group: rsna-a0-score-audit
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   audit:
@@ -85,50 +85,24 @@ jobs:
               print("DESCRIPTION",item["description"])
           PY
 
-      - name: Poll every existing A0 submission
+      - name: Query every existing A0 submission once
         run: |
           set -euo pipefail
           mapfile -t refs < out/a0/a0-refs.txt
           test "${#refs[@]}" -gt 0
+          : > out/a0/final-score-summary.txt
 
-          for i in $(seq 1 720); do
-            pending=0
-            echo "=== audit pass $i / 720; refs=${#refs[@]} ==="
-
-            for ref in "${refs[@]}"; do
-              outfile="out/a0/status-${ref}.txt"
-              set +e
-              kaggle competitions submission "$ref" > "$outfile" 2>&1
-              rc=$?
-              set -e
-              echo "--- ref $ref (CLI rc=$rc) ---"
-              cat "$outfile"
-
-              state="$(sed -n 's/^[Ss]tatus:[[:space:]]*//p' "$outfile" | head -n 1 | tr '[:lower:]' '[:upper:]' | tr -d '\r')"
-              state="${state#SUBMISSIONSTATUS.}"
-
-              if [[ "$state" == "COMPLETE" || "$state" == "SUCCEEDED" || "$state" == "SUCCESS" ]]; then
-                grep -iE '^(Submission Ref|Status|Public Score|Private Score|Description|Submission Date):' "$outfile" || true
-              elif [[ "$state" == "ERROR" || "$state" == "FAILED" || "$state" == "REJECTED" ]]; then
-                echo "TERMINAL_FAILURE ref=$ref state=$state"
-              else
-                pending=$((pending+1))
-                echo "STILL_PENDING ref=$ref state=${state:-UNKNOWN}"
-              fi
-            done
-
-            if [ "$pending" -eq 0 ]; then
-              echo "All existing A0 submissions are terminal; no new submission was created."
-              exit 0
-            fi
-
-            echo "Pending A0 submissions: $pending"
-            sleep 30
+          for ref in "${refs[@]}"; do
+            outfile="out/a0/status-${ref}.txt"
+            set +e
+            kaggle competitions submission "$ref" > "$outfile" 2>&1
+            rc=$?
+            set -e
+            echo "=== ref=$ref cli_rc=$rc ===" | tee -a out/a0/final-score-summary.txt
+            cat "$outfile" | tee -a out/a0/final-score-summary.txt
           done
 
-          echo "At least one A0 submission remained pending after 12 hours."
-          exit 1
-
+          echo "Audit complete. No kernel push and no new competition submission were performed."
       - name: Archive A0 score audit
         if: always()
         uses: actions/upload-artifact@v4
