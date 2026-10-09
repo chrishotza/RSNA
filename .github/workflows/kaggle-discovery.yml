@@ -199,3 +199,46 @@ jobs:
             kaggle-checkpoint-sha256.txt
             kaggle-recovery-status.md
             ckpt_ds/**
+  a6_kaggle_push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - name: Build A6 Kaggle notebook
+        run: |
+          git clone --depth 1 https://github.com/mathischmp/challenge_rsna.git external
+          python -m pip install -q --upgrade kaggle
+          python scripts/a6_make_kaggle_notebook.py .
+          mkdir -p a6_push
+          cp kaggle/a6_teacher_export/a6_smoke.ipynb a6_push/
+          python - <<'PY'
+          import json
+          data={"id":"chrishotza/rsna-a6-raptor-three-study-smoke",
+                "title":"RSNA A6 Raptor three-study smoke",
+                "code_file":"a6_smoke.ipynb",
+                "language":"python","kernel_type":"notebook",
+                "is_private":True,"enable_gpu":True,"enable_internet":True,
+                "competition_sources":["rsna-knee-abnormality-detection"],
+                "dataset_sources":["dreaddevelopment/raptor-knee-maxspan"]}
+          with open("a6_push/kernel-metadata.json","w") as f: json.dump(data,f)
+          PY
+      - name: Push notebook to Kaggle
+        run: |
+          set -o pipefail
+          kaggle kernels push -p a6_push 2>&1 | tee kaggle-a6-push.log
+      - name: Archive Kaggle push result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-push-proof
+          if-no-files-found: warn
+          path: |
+            kaggle-a6-push.log
+            a6_push/kernel-metadata.json
