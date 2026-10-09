@@ -1,0 +1,48 @@
+name: Diagnose A2 submission result
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/check-a2-submission.txt
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      REF: "57002021"
+      COMPETITION: rsna-knee-abnormality-detection
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: Read A2 submission row
+        run: |
+          set -euo pipefail
+          mkdir -p out/a2-status
+          kaggle competitions submissions "$COMPETITION" -v -q | tee out/a2-status/submissions.csv
+          python - <<'PY'
+          import csv, os, json
+          from pathlib import Path
+          ref=os.environ["REF"]
+          rows=list(csv.DictReader(Path("out/a2-status/submissions.csv").open()))
+          print("FIELDS", rows[0].keys() if rows else [])
+          for r in rows:
+              low={str(k).lower():str(v) for k,v in r.items()}
+              rr=low.get("ref") or low.get("id") or low.get("submissionref")
+              if rr==ref:
+                  print("A2_ROW")
+                  print(json.dumps(r,indent=2))
+                  Path("out/a2-status/a2-row.json").write_text(json.dumps(r,indent=2))
+                  break
+          else:
+              raise SystemExit("A2 ref not found")
+          PY
+      - name: Archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a2-status
+          path: out/a2-status/**
