@@ -1,0 +1,114 @@
+name: Kaggle EXP-A3 immediate code submission
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/submit-exp-a3-now.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a3-now
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      COMPETITION: rsna-knee-abnormality-detection
+      KERNEL_ID: chrishotza/rsna-exp-a3-rank-submit-now
+      SUBMISSION_MESSAGE: "EXP-A3 | A3-RANK | immediate code submission"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Build A3 competition notebook
+        run: |
+          set -euo pipefail
+          mkdir -p build/a3-now out/a3-now
+          cp notebooks/experiments/EXP-A3-rank-submit.ipynb build/a3-now/a3-rank-submit.ipynb
+          cp notebooks/A0_public_0941/kernel-metadata.json build/a3-now/kernel-metadata.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("build/a3-now/kernel-metadata.json")
+          m=json.loads(p.read_text())
+          m["id"]="chrishotza/rsna-exp-a3-rank-submit-now"
+          m["title"]="rsna-exp-a3-rank-submit-now"
+          m["code_file"]="a3-rank-submit.ipynb"
+          m["kernel_type"]="notebook"
+          m["is_private"]=True
+          m["enable_gpu"]=True
+          m["enable_internet"]=False
+          m["machine_shape"]="NvidiaTeslaT4"
+          p.write_text(json.dumps(m,indent=2)+"\n")
+          nb=json.loads(Path("build/a3-now/a3-rank-submit.ipynb").read_text())
+          code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          compile(code,"a3-rank-submit.ipynb","exec")
+          if "from src" in code or "import src" in code:
+              raise SystemExit("Residual src import in A3 notebook")
+          print("A3 notebook preflight OK")
+          PY
+
+      - name: Save A3 version without pre-running
+        id: save
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/a3-now --no-run 2>&1 | tee out/a3-now/kernel-save.txt
+          version="$(sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' out/a3-now/kernel-save.txt | tail -n 1)"
+          test -n "$version" || { echo "Could not parse A3 kernel version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "$version" > out/a3-now/kernel-version.txt
+          echo "A3 SAVED VERSION $version"
+
+      - name: Submit A3 immediately
+        id: submit
+        run: |
+          set -euo pipefail
+          kaggle competitions submit "$COMPETITION"             -k "$KERNEL_ID"             -v "${{ steps.save.outputs.version }}"             -f submission.csv             -m "$SUBMISSION_MESSAGE"             2>&1 | tee out/a3-now/submit.txt
+
+      - name: Verify A3 submission exists
+        run: |
+          set -euo pipefail
+          found=false
+          for i in $(seq 1 20); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/a3-now/submissions.csv
+            set +e
+            python - <<'PY'
+          import csv, json, os, sys
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a3-now/submissions.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if not matches: sys.exit(10)
+          row=matches[-1]
+          Path("out/a3-now/submission-found.json").write_text(json.dumps(row,indent=2))
+          print("FOUND A3 SUBMISSION:",json.dumps(row,indent=2))
+          PY
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            if [ "$rc" -ne 10 ]; then exit 1; fi
+            sleep 15
+          done
+          test "$found" = true || { echo "A3 submission not visible"; exit 1; }
+
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a3-immediate-submission
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/a3-now/**
