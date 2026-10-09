@@ -23,7 +23,7 @@ def main():
     ap.add_argument("--d4",required=True)
     ap.add_argument("--cnxt",required=True)
     ap.add_argument("--outdir",required=True)
-    ap.add_argument("--kernel-id",default="chrishotza/rsna-a5-d4-cnxt-hybrid")
+    ap.add_argument("--kernel-id",default="chrishotza/rsna-exp-a5-frontier-0944")
     a=ap.parse_args()
 
     d4dir=Path(a.d4); cdir=Path(a.cnxt); out=Path(a.outdir); out.mkdir(parents=True,exist_ok=True)
@@ -97,7 +97,7 @@ print("[A5-HYBRID] emitted global30 + targetaware",dict(zip(_A5_LABS,_A5_W.tolis
 
     meta=copy.deepcopy(dm)
     meta["id"]=a.kernel_id
-    meta["title"]="RSNA A5 D4 ConvNeXt Hybrid"
+    meta["title"]="rsna-exp-a5-frontier-0944"
     meta["code_file"]="rsna-a5-d4-cnxt-hybrid.ipynb"
     meta["is_private"]=True
     meta["enable_gpu"]=True
