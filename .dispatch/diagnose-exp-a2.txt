@@ -1,1 +1,1 @@
-diagnose A3 v4 kernel
+inspect A3 training kernel state
