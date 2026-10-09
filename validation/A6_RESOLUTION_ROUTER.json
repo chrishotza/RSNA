@@ -1,0 +1,25 @@
+{
+  "schema": "a6_resolution_router_v1",
+  "status": "HYPOTHESIS_NOT_PROMOTED",
+  "accuracy_arm": {
+    "resolution": 384,
+    "public_lb": 0.949,
+    "gold_macro": 0.9189517820620557,
+    "submission": 56906959,
+    "sha256": "7e5315dad125b99fc65b340b3de41de628e9be51ff5835355dd61c86472244ef"
+  },
+  "efficiency_arm": {
+    "resolution": 224,
+    "public_lb": 0.945,
+    "gold_macro": 0.9147251129398329,
+    "submission": 56707773,
+    "sha256": "3394fdd7e668286956e85af2554bef0386df5cd79d1c1af223b095c828b815d6"
+  },
+  "same_data_oracle_gold_macro": 0.9262670852586375,
+  "same_data_oracle_gain": 0.0073153031965818,
+  "pre_registered_confirmation_targets": {
+    "MCL": {"candidate_resolution": 224, "gold_delta_vs_384": 0.0340136054421769},
+    "Effusion": {"candidate_resolution": 224, "gold_delta_vs_384": 0.0149068322981367}
+  },
+  "promotion_requires_independent_confirmation": true
+}
