@@ -1,0 +1,45 @@
+name: Diagnose Kaggle EXP-A2 kernel
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/diagnose-exp-a2.txt
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: chrishotza/rsna-exp-a2-dsr1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Capture Kaggle status and execution logs
+        run: |
+          set -uo pipefail
+          mkdir -p out/a2-diagnose
+          kaggle kernels status "$KERNEL_ID" 2>&1 | tee out/a2-diagnose/status.txt
+          kaggle kernels logs "$KERNEL_ID" 2>&1 | tee out/a2-diagnose/kernel-logs.txt
+          kaggle kernels files "$KERNEL_ID" -v 2>&1 | tee out/a2-diagnose/files.csv || true
+          kaggle kernels output "$KERNEL_ID" -p out/a2-diagnose/output -o 2>&1 | tee out/a2-diagnose/output-download.txt || true
+
+      - name: Archive diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a2-kaggle-diagnostics
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/a2-diagnose/**
