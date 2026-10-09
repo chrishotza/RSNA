@@ -1,0 +1,26 @@
+{
+  "status": "BUILDING",
+  "experiment_id": "EXP-A4",
+  "codename": "A4-ORTHO",
+  "component": "public-foundation disagreement router",
+  "relation": {
+    "A0": "orthogonal public-model signal, not another A0-family retune",
+    "A2": "no reuse of A2 specialist weights",
+    "A3": "no training; independent inference-only candidate"
+  },
+  "training_required": false,
+  "submission_style": "inference-only",
+  "public_sources_to_probe": [
+    "dreaddevelopment/raptor-knee-widedense",
+    "tonylica/rsna2026-models",
+    "tim9510019/rsna-knee-v34-master-models"
+  ],
+  "router": {
+    "type": "capped agreement-gated rank displacement",
+    "anchor": "strongest reproducible public arm selected after audit",
+    "specialists": "structurally distinct public arms",
+    "rank_space": true,
+    "global_cap": 0.20
+  },
+  "submit_allowed": false
+}
