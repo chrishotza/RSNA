@@ -43,7 +43,7 @@ jobs:
           p=Path("experiments/queue/active.json")
           q=json.loads(p.read_text(encoding="utf-8"))
           required=("experiment_id","status","baseline_notebook","candidate_notebook",
-                    "changed_cell","before","after","kernel_id","submission_message")
+                    "kernel_id","submission_message","validation_mode")
           missing=[k for k in required if k not in q]
           if missing:
               raise SystemExit(f"Queue config missing required fields: {missing}")
@@ -62,9 +62,12 @@ jobs:
               ("experiment_id",q["experiment_id"]),
               ("baseline_notebook",q["baseline_notebook"]),
               ("candidate_notebook",q["candidate_notebook"]),
-              ("changed_cell",str(q["changed_cell"])),
-              ("before",q["before"]),
-              ("after",q["after"]),
+              ("validation_mode",q["validation_mode"]),
+              ("changed_cell",str(q.get("changed_cell",""))),
+              ("before",q.get("before","")),
+              ("after",q.get("after","")),
+              ("allowed_code_cells",",".join(map(str,q.get("allowed_code_cells",[])))),
+              ("allowed_markdown_cells",",".join(map(str,q.get("allowed_markdown_cells",[])))),
               ("kernel_id",q["kernel_id"]),
               ("submission_message",q["submission_message"]),
           ]
@@ -77,14 +80,30 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/experiment build/experiment
-          python scripts/validate_notebook_experiment.py \
-            --baseline "${{ steps.queue.outputs.baseline_notebook }}" \
-            --candidate "${{ steps.queue.outputs.candidate_notebook }}" \
-            --experiment-id "${{ steps.queue.outputs.experiment_id }}" \
-            --changed-cell "${{ steps.queue.outputs.changed_cell }}" \
-            --before "${{ steps.queue.outputs.before }}" \
-            --after "${{ steps.queue.outputs.after }}" \
-            --output out/experiment/validation.json
+          if [ "${{ steps.queue.outputs.validation_mode }}" = "single_line" ]; then
+            python scripts/validate_notebook_experiment.py \
+              --baseline "${{ steps.queue.outputs.baseline_notebook }}" \
+              --candidate "${{ steps.queue.outputs.candidate_notebook }}" \
+              --experiment-id "${{ steps.queue.outputs.experiment_id }}" \
+              --changed-cell "${{ steps.queue.outputs.changed_cell }}" \
+              --before "${{ steps.queue.outputs.before }}" \
+              --after "${{ steps.queue.outputs.after }}" \
+              --output out/experiment/validation.json
+          elif [ "${{ steps.queue.outputs.validation_mode }}" = "full_cell" ]; then
+            python scripts/validate_notebook_candidate.py \
+              --baseline "${{ steps.queue.outputs.baseline_notebook }}" \
+              --candidate "${{ steps.queue.outputs.candidate_notebook }}" \
+              --experiment-id "${{ steps.queue.outputs.experiment_id }}" \
+              --allowed-code-cells "${{ steps.queue.outputs.allowed_code_cells }}" \
+              --allowed-markdown-cells "${{ steps.queue.outputs.allowed_markdown_cells }}" \
+              --require-token "A2_DSR1_three_family_target_router_v1" \
+              --require-token "_ke_required_members = {'resgated_top3', 'd4_swa3'}" \
+              --require-token "0.75 * _routed + 0.25 * _ke_consensus" \
+              --output out/experiment/validation.json
+          else
+            echo "Unknown validation_mode: ${{ steps.queue.outputs.validation_mode }}"
+            exit 2
+          fi
 
       - name: Prepare kernel metadata without executing the notebook
         if: steps.queue.outputs.ready == 'true'
