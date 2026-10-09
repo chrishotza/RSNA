@@ -11,8 +11,10 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import io
 import json
 import re
+import tokenize
 import sys
 from pathlib import Path
 from typing import Any
@@ -33,6 +35,28 @@ def text(cell: dict[str, Any]) -> str:
 
 def set_text(cell: dict[str, Any], value: str) -> None:
     cell["source"] = re.findall(r"[^\n]*\n|[^\n]+$", value)
+
+
+
+def _without_inline_comment(line: str) -> str:
+    """Remove a Python comment without treating '#' inside a string as a comment."""
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(line + "\\n").readline):
+            if token.type == tokenize.COMMENT:
+                return line[: token.start[1]].rstrip()
+    except (tokenize.TokenError, IndentationError):
+        pass
+    return line.rstrip()
+
+
+def same_python_statement(source_line: str, expected_statement: str) -> bool:
+    """Compare first-line Python statements by AST, ignoring whitespace/comments."""
+    try:
+        actual = ast.dump(ast.parse(_without_inline_comment(source_line)), include_attributes=False)
+        expected = ast.dump(ast.parse(expected_statement), include_attributes=False)
+    except SyntaxError:
+        return False
+    return actual == expected
 
 
 def sha256(path: Path) -> str:
@@ -107,13 +131,13 @@ def validate(
     cand_lines = text(candidate["cells"][changed_cell]).splitlines()
     if not base_lines or not cand_lines:
         raise ValueError("Declared changed cell must be non-empty")
-    if base_lines[0].strip() != before:
+    if not same_python_statement(base_lines[0], before):
         raise ValueError(
-            f"baseline cell {changed_cell} first line is {base_lines[0]!r}, expected {before!r}"
+            f"baseline cell {changed_cell} first statement is {base_lines[0]!r}, expected {before!r}"
         )
-    if cand_lines[0].strip() != after:
+    if not same_python_statement(cand_lines[0], after):
         raise ValueError(
-            f"candidate cell {changed_cell} first line is {cand_lines[0]!r}, expected {after!r}"
+            f"candidate cell {changed_cell} first statement is {cand_lines[0]!r}, expected {after!r}"
         )
     if base_lines[1:] != cand_lines[1:]:
         raise ValueError("The changed cell contains additional changes beyond its declared first line")
