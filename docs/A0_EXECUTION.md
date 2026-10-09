@@ -75,3 +75,9 @@ Before any submission candidate is accepted, benchmark the exact inference path 
 T4/P100 do not have native bf16 acceleration. Use fp16 where appropriate and explicitly check `torch.cuda.is_bf16_supported(including_emulation=False)` before any bf16 path.
 
 A recent competition failure showed 50x slower inference from bf16 emulation, causing a partial test fallback and a severe LB collapse. Therefore runtime is a hard gate, not an optimization after scoring.
+
+## Current state supersedes the initial sequence above (2026-10-09)
+
+A0 measured 0.940; its four refs repeated the same kernel version. The exact submitted artifact is `notebooks/A0_public_0941/a0-submitted-freeze.ipynb`. EXP-A1 is the precision-policy change `bf16 -> auto`, submitted once as ref `56988112` and still in flight. ANCHOR-B is the separate reported 0.943 notebook and is not EXP-A1. EXP-A2 is research-only until full OOF and nested-fold evidence exist.
+
+The BF16/T4 runtime explanation is a hypothesis, not a proven cause of the measured A0 score. Use the actual EXP-A1 run diagnostics before attributing any score difference to it.
