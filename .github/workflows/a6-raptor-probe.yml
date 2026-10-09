@@ -1,0 +1,57 @@
+name: A6 Raptor availability probe
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".github/workflows/a6-raptor-probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Kaggle CLI
+        run: python -m pip install --quiet --upgrade kaggle
+      - name: Check credentials and Raptor assets (metadata only)
+        shell: bash
+        run: |
+          set -u
+          mkdir -p out
+          if [ -z "${KAGGLE_API_TOKEN:-}" ]; then
+            printf '%s\n' 'KAGGLE_API_TOKEN missing' | tee out/auth.txt
+            exit 2
+          fi
+          kaggle datasets list --user tejuuss --sort-by updated -v > out/auth.txt 2>&1
+          auth_rc=$?
+          echo "auth_rc=$auth_rc"
+          if [ "$auth_rc" -ne 0 ]; then
+            sed -E 's/(token|key|password)=[^ ]+/\\1=REDACTED/g' out/auth.txt
+            exit 3
+          fi
+          for ref in dreaddevelopment/raptor-knee-maxspan dreaddevelopment/knee-raptor-corpus; do
+            echo "=== $ref ===" >> out/assets.txt
+            kaggle datasets files "$ref" --page-size 200 -v >> out/assets.txt 2>&1
+            echo "exit=$?" >> out/assets.txt
+          done
+          for search in "raptor knee" "raptor ft coatnet" "knee raptor corpus"; do
+            echo "=== $search ===" >> out/discovery.txt
+            kaggle datasets list -s "$search" --sort-by updated -v >> out/discovery.txt 2>&1
+            echo "exit=$?" >> out/discovery.txt
+          done
+          grep -Ei 'raptor_ft_coatnet_v5_full_swa|\.pt|\.pth|\.npz|\.csv' out/assets.txt | head -60 || true
+          echo "Metadata probe only: no training, no model run, no submission."
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-raptor-asset-probe
+          path: out/
+          if-no-files-found: warn
+          retention-days: 7
