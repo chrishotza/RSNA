@@ -1,0 +1,71 @@
+{
+  "schema": "rsna_validation_ledger_v1",
+  "metric": "macro_roc_auc_12_targets",
+  "policy": {
+    "public_leaderboard_is_not_validation": true,
+    "gold58_role": "guardrail_only_unless_pre_registered_no_tuning",
+    "final_submission_requires_internal_promotion": true,
+    "promotion_validator": "scripts/validate_a5_candidate.py",
+    "no_silent_fallbacks": true,
+    "exact_artifact_hashes_required": true
+  },
+  "baselines": {
+    "A0_A1": {
+      "public_lb": 0.94,
+      "status": "REFERENCE",
+      "role": "strong verified parent",
+      "notes": "Frozen public-family baseline; strongest measured in-house reference before A5 frontier."
+    }
+  },
+  "experiments": {
+    "A2": {
+      "status": "REPAIRED_NOT_RESUBMITTED",
+      "public_lb": null,
+      "submission_ref": "57002021",
+      "finding": "Initial code submission completed without score. Single-GPU branch contained undefined workers loop; patched in research branch.",
+      "decision": "Do not spend final slot without stronger comparative evidence."
+    },
+    "A3": {
+      "status": "REJECT",
+      "variant": "A3-RANK A3-2",
+      "public_lb": 0.843,
+      "submission_ref": "57012257",
+      "evidence": {
+        "gold58_macro": 0.80343,
+        "training_kernel": "chrishotza/rsna-exp-a3-a3-rank-training"
+      },
+      "finding": "Rank-first learned representation failed hidden/public generalization badly.",
+      "decision": "Family rejected for final submission."
+    },
+    "A4": {
+      "status": "REJECT",
+      "public_lb": 0.908,
+      "submission_ref": "57008842",
+      "finding": "Weak anchor + overestimated model orthogonality + aggressive disagreement routing.",
+      "postmortem": "docs/EXP_A4_ORTHO_POSTMORTEM.md",
+      "decision": "Agreement between weak/correlated specialists is not sufficient evidence."
+    },
+    "A5_FRONTIER_0944": {
+      "status": "DRY_RUN_RUNNING",
+      "source_kernel": "goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944",
+      "claimed_public_lb": 0.944,
+      "architecture": "community stack + 2.5D ConvNeXt MIL rank blend",
+      "source_reader_weight": 0.3,
+      "github_run": 37975482874,
+      "competition_submitted": false,
+      "plan": "docs/EXP_A5_FRONTIER_PLAN.md"
+    },
+    "A5_EAM": {
+      "status": "VALIDATION_INFRA_RETRY_REQUIRED",
+      "hypothesis": "Expectation over Acquisition Marginalization",
+      "doc": "docs/EXP_A5_EAM.md",
+      "first_validation_run": 37976042863,
+      "first_failure": "Kaggle SaveKernel 403 while creating a second kernel; hypothesis not evaluated.",
+      "competition_submitted": false
+    }
+  },
+  "final_slot": {
+    "remaining_assumption": 1,
+    "spend_policy": "Only after exact kernel completion, internal promotion, runtime validation, output hash/contract validation, and explicit comparison against the strongest verified parent."
+  }
+}
