@@ -64,10 +64,18 @@ def main():
         ids = ids[:a.limit]
     if set(ids) & set(gold):
         raise ValueError("Gold leakage")
-    series = series_by_study(pd.read_csv(root / "train_series.csv"))
+    series = series_by_study(pd.read_csv(root / "train_series.csv", dtype={UID: str, "SeriesInstanceUID": str}))
     missing = set(ids) - set(series)
     if missing:
         raise ValueError(f"Missing series metadata for {len(missing)} studies")
+    # Reject studies without a usable metadata match before expensive inference.
+    from rsna_knee.raptor import pick_series_for_slot, MAXSPAN_SLOTS
+    unslotted = [study for study in ids if not any(
+        pick_series_for_slot(series[study], plane, fluid, set()) is not None
+        for plane, fluid, _ in MAXSPAN_SLOTS
+    )]
+    if unslotted:
+        raise ValueError(f"{len(unslotted)} studies have no selectable MR series: {unslotted[:5]}")
     devices = devices_for_inference()
     if not devices or devices == ["cpu"]:
         raise RuntimeError("GPU required for full Raptor extraction")
