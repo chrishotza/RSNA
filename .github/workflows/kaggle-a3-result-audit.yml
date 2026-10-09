@@ -1,4 +1,4 @@
-name: A3 training result audit
+name: A3 scored submission audit
 
 on:
   push:
@@ -13,16 +13,24 @@ jobs:
     timeout-minutes: 10
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-      KERNEL_ID: chrishotza/rsna-exp-a3-a3-rank-training
+      COMPETITION: rsna-knee-abnormality-detection
+      REF: "57012257"
     steps:
       - name: Install Kaggle CLI
         run: python -m pip install --upgrade kaggle
-      - name: Read A3 result
+      - name: Read A3 scored result
         run: |
           set -euo pipefail
-          echo "=== STATUS ==="
-          kaggle kernels status "$KERNEL_ID"
-          echo "=== FILES ==="
-          kaggle kernels files "$KERNEL_ID" -v
-          echo "=== FINAL LOGS ==="
-          kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 500
+          kaggle competitions submissions "$COMPETITION" -v -q | tee submissions.csv
+          python - <<'PY'
+          import csv,os,json
+          rows=list(csv.DictReader(open("submissions.csv")))
+          ref=os.environ["REF"]
+          row=next((r for r in rows if str(r.get("ref",""))==ref),None)
+          if not row: raise SystemExit("A3 ref not found")
+          print("A3_SUBMISSION")
+          print(json.dumps(row,indent=2))
+          print("ALL_RECENT")
+          for r in rows[:8]:
+              print(json.dumps(r,sort_keys=True))
+          PY
