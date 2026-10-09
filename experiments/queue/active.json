@@ -1,0 +1,14 @@
+{
+  "status": "IN_FLIGHT",
+  "experiment_id": "EXP-A1",
+  "parent_experiment": "EXP-A0",
+  "baseline_notebook": "notebooks/A0_public_0941/rsna-knee-blend-full.ipynb",
+  "candidate_notebook": "notebooks/experiments/EXP-A1-amp-auto-t4.ipynb",
+  "changed_cell": 19,
+  "before": "AMP_PREF = 'bf16'",
+  "after": "AMP_PREF = 'auto'",
+  "kernel_id": "chrishotza/rsna-exp-a1-amp-auto-t4",
+  "submission_message": "EXP-A1 | AMP auto for T4 | candidate=59c67221089cd611e317a5464731b07df0447da4",
+  "submission_ref": "56988112",
+  "note": "Already submitted once. Never push or submit this experiment again. Wait for ref 56988112 to finish."
+}
