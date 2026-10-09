@@ -2,13 +2,12 @@ name: A5 D4 ConvNeXt hybrid dryrun
 
 on:
   push:
-    branches:
-      - research
+    branches: [research]
     paths:
       - ".dispatch/run-a5-d4-cnxt-hybrid.txt"
 
 jobs:
-  build-run:
+  hybrid:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
@@ -18,76 +17,39 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: research
-
-      - name: Install dependencies
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
         run: python -m pip install --upgrade kaggle pandas numpy
-
-      - name: Pull public sources
+      - name: Pull
         run: |
-          set -euo pipefail
           mkdir -p build/d4 build/cnxt build/hybrid out/hybrid
           kaggle kernels pull pjmathematician/rsna-knee-d4-lite -p build/d4 -m
           kaggle kernels pull goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944 -p build/cnxt -m
-
-      - name: Build hybrid
+      - name: Build
+        run: python scripts/build_a5_d4_cnxt_hybrid.py --d4 build/d4 --cnxt build/cnxt --outdir build/hybrid --kernel-id "$KERNEL_ID"
+      - name: Push
         run: |
-          set -euo pipefail
-          python scripts/build_a5_d4_cnxt_hybrid.py             --d4 build/d4 --cnxt build/cnxt --outdir build/hybrid             --kernel-id "$KERNEL_ID"
-          cp build/hybrid/build_audit.json out/hybrid/
-
-      - name: Push private dry-run
-        run: |
-          set -euo pipefail
           kaggle kernels push -p build/hybrid 2>&1 | tee out/hybrid/push.txt
           grep -qi "successfully pushed" out/hybrid/push.txt
-
-      - name: Wait for completion
+      - name: Wait
         run: |
-          set -euo pipefail
-          ok=0
           for i in $(seq 1 150); do
             s="$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)"
             echo "[$i] $s"
-            case "$s" in
-              *"KernelWorkerStatus.COMPLETE"*) ok=1; break ;;
-              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*)
-                kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 800 || true
-                exit 1 ;;
-            esac
+            if echo "$s" | grep -q "KernelWorkerStatus.COMPLETE"; then exit 0; fi
+            if echo "$s" | grep -Eq "KernelWorkerStatus.ERROR|KernelWorkerStatus.FAILED"; then exit 1; fi
             sleep 60
           done
-          test "$ok" = 1
-
-      - name: Collect outputs
+          exit 1
+      - name: Collect
         run: |
-          set -euo pipefail
           mkdir -p out/hybrid/output
           kaggle kernels output "$KERNEL_ID" -p out/hybrid/output -o
           kaggle kernels logs "$KERNEL_ID" > out/hybrid/kernel.log 2>&1 || true
-          python - <<'PY'
-          import pandas as pd, numpy as np, hashlib, json
-          from pathlib import Path
-          root=Path("out/hybrid/output")
-          req=["submission.csv","submission_global30.csv","submission_targetaware.csv","d4_parent_submission.csv"]
-          miss=[x for x in req if not (root/x).is_file()]
-          if miss:
-              raise SystemExit("missing outputs: "+repr(miss))
-          report={}
-          for fn in req:
-              p=root/fn
-              d=pd.read_csv(p)
-              v=d.iloc[:,1:].to_numpy(float)
-              if d.shape[1]!=13 or not np.isfinite(v).all():
-                  raise SystemExit("invalid output "+fn)
-              report[fn]={"shape":list(d.shape),"sha256":hashlib.sha256(p.read_bytes()).hexdigest()}
-          g=pd.read_csv(root/"submission_global30.csv").iloc[:,1:].to_numpy(float)
-          t=pd.read_csv(root/"submission_targetaware.csv").iloc[:,1:].to_numpy(float)
-          diff=np.abs(g-t)
-          report["targetaware_vs_global30"]={"changed_cells":int((diff>1e-12).sum()),"max_abs_diff":float(diff.max())}
-          Path("out/hybrid/verification.json").write_text(json.dumps(report,indent=2)+"\n")
-          print(json.dumps(report,indent=2))
-          PY
-
+          cp build/hybrid/build_audit.json out/hybrid/
+          python scripts/verify_a5_hybrid_outputs.py --root out/hybrid/output --out out/hybrid/verification.json
       - name: Archive
         if: always()
         uses: actions/upload-artifact@v4
