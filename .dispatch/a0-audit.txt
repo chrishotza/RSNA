@@ -1,1 +1,1 @@
-Second one-pass, read-only audit of all existing A0 refs after users reported all completed. No push, run, cancel, or new submission.
+One-pass read-only audit using Kaggle CLI's supported submissions-history command. Return status and public score for all existing A0 refs. No new submission.
