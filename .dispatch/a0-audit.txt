@@ -1,0 +1,1 @@
+Run one read-only audit of all already-submitted A0 refs. Never create a notebook run or competition submission.
