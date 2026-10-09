@@ -136,19 +136,43 @@ def canonical_plane(value: str | None) -> str:
     return "UNKNOWN"
 
 
+def _binary_flag(value: bool | int | float | str | None) -> int:
+    """Map only explicit truthy protocol values to 1; unknown/NaN -> 0."""
+    if value is None:
+        return 0
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"1", "true", "yes", "y", "t"}:
+            return 1
+        if text in {"0", "false", "no", "n", "f", "", "nan", "none", "<na>", "unknown"}:
+            return 0
+        try:
+            value = float(text)
+        except ValueError:
+            return 0
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0
+    if not np.isfinite(number):
+        return 0
+    return 1 if number == 1.0 else 0
+
+
 def acquisition_type_id(
     anatomical_plane: str | None,
-    fluid_sensitive: bool | int | None,
-    fat_suppression: bool | int | None,
+    fluid_sensitive: bool | int | float | str | None,
+    fat_suppression: bool | int | float | str | None,
 ) -> int:
     """Stable compact ID: plane x fluid x fat suppression.
 
+    Unknown protocol flags map to 0 rather than Python's dangerous bool(NaN).
     IDs occupy [0, 15], leaving room in the model vocabulary for future
     sequence metadata without changing existing IDs.
     """
     plane_id = PLANE_IDS[canonical_plane(anatomical_plane)]
-    fluid = int(bool(fluid_sensitive))
-    fat = int(bool(fat_suppression))
+    fluid = _binary_flag(fluid_sensitive)
+    fat = _binary_flag(fat_suppression)
     return plane_id * 4 + fluid * 2 + fat
 
 
