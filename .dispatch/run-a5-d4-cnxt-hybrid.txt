@@ -1,1 +1,1 @@
-run private dry-run for D4-lite + independent ConvNeXt hybrid v3
+run private dry-run for D4-lite + independent ConvNeXt hybrid v4 accepted-kernel
