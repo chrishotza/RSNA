@@ -1,0 +1,52 @@
+name: A5 097 provenance audit
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/audit-a5-097-provenance.txt
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: Pull D4-lite and 0.944 ConvNeXt source
+        run: |
+          set -euo pipefail
+          mkdir -p out/d4 out/cnxt
+          kaggle kernels pull pjmathematician/rsna-knee-d4-lite -p out/d4 -m
+          kaggle kernels pull goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944 -p out/cnxt -m
+      - name: Audit training/holdout provenance
+        run: |
+          python - <<'PY'
+          import json,re
+          from pathlib import Path
+
+          def code(root):
+              p=next(Path(root).glob("*.ipynb"))
+              nb=json.loads(p.read_text())
+              return "\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+
+          for name,root in [("D4","out/d4"),("CNXT","out/cnxt")]:
+              src=code(root)
+              print(f"\n===== {name} PROVENANCE =====")
+              needles=[
+                  "gold","holdout","fold","train.csv","58","expert",
+                  "trained without","exclude","excluded","leak","contamin",
+                  "member_epochs","manifest","selection","oof","validation"
+              ]
+              for needle in needles:
+                  print(f"\n--- {needle} ---")
+                  pos=0;k=0
+                  while True:
+                      pos=src.lower().find(needle.lower(),pos)
+                      if pos<0 or k>=16: break
+                      print(src[max(0,pos-900):min(len(src),pos+2600)])
+                      pos+=len(needle);k+=1
+          PY
