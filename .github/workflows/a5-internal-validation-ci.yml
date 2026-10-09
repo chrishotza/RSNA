@@ -1,0 +1,44 @@
+name: A5 internal validation CI
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - scripts/validate_a5_candidate.py
+      - tests/test_validate_a5_candidate.py
+      - .github/workflows/a5-internal-validation-ci.yml
+  workflow_dispatch:
+
+jobs:
+  validate-validator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal validation stack
+        run: python -m pip install --upgrade numpy scikit-learn pytest
+      - name: Unit tests
+        run: python -m pytest -q tests/test_validate_a5_candidate.py
+      - name: Synthetic promotion smoke
+        run: |
+          python - <<'PY'
+          import numpy as np
+          from pathlib import Path
+          rng=np.random.default_rng(7)
+          n=80
+          y=rng.integers(0,2,size=(n,12)).astype(float)
+          score=(2*y-1)+rng.normal(0,1.0,size=(n,12))
+          parent=1/(1+np.exp(-(score+rng.normal(0,.9,size=(n,12)))))
+          cand=1/(1+np.exp(-(score+rng.normal(0,.25,size=(n,12)))))
+          np.savez("/tmp/a5-synth.npz",uids=np.array([f"u{i}" for i in range(n)]),
+                   truth=y,original=parent,eam12=cand,
+                   uncertainty=np.full((n,12),.01))
+          PY
+          python scripts/validate_a5_candidate.py /tmp/a5-synth.npz             --candidate eam12 --parent original --bootstrap 1000             --out /tmp/a5-promotion.json
+          test -s /tmp/a5-promotion.json
