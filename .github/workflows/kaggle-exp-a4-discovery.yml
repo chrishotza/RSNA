@@ -1,0 +1,83 @@
+name: Kaggle EXP-A4 public asset discovery
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/discover-exp-a4.txt
+
+jobs:
+  discover-a4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Inspect candidate public datasets
+        run: |
+          set -uo pipefail
+          mkdir -p out/a4-discovery
+          : > out/a4-discovery/datasets.txt
+          for ref in             dreaddevelopment/raptor-knee-widedense             tonylica/rsna2026-models             tim9510019/rsna-knee-v34-master-models
+          do
+            echo "===== DATASET $ref =====" | tee -a out/a4-discovery/datasets.txt
+            kaggle datasets files "$ref" --page-size 200 -v 2>&1 | tee -a out/a4-discovery/datasets.txt || true
+            echo | tee -a out/a4-discovery/datasets.txt
+          done
+
+      - name: Pull public notebook sources
+        run: |
+          set -uo pipefail
+          mkdir -p out/a4-discovery/kernels
+          for ref in             dreaddevelopment/knee-mri-twelve-findings-from-a-single-model             tonylica/rsna-knee-infer             xuanleekaggle/rsna-knee-copy-nk             hdhsjdjd/rsna-knee-raptor-v36-w060
+          do
+            slug="${ref#*/}"
+            mkdir -p "out/a4-discovery/kernels/$slug"
+            echo "===== PULL $ref ====="
+            kaggle kernels pull "$ref" -p "out/a4-discovery/kernels/$slug" -m 2>&1 || true
+          done
+
+      - name: Extract model and preprocessing contracts
+        run: |
+          set -uo pipefail
+          {
+            echo "===== PUBLIC A4 CONTRACT HINTS ====="
+            grep -RniE               'biomed|dinov|convnext|swin|coatnet|resnet|efficient|torch\.load|timm\.create_model|checkpoint|\.pt|\.pth|crop|pixelspacing|laterality|slot|window|series|rank|blend|weight'               out/a4-discovery/kernels               --include='*.py' --include='*.ipynb' --include='*.json'               | head -n 2500 || true
+          } | tee out/a4-discovery/contracts.txt
+
+      - name: Summarize candidate files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, re
+          root=Path("out/a4-discovery")
+          ds=(root/"datasets.txt").read_text(errors="replace")
+          names=sorted(set(re.findall(r'[^\s,]+\.(?:pt|pth|bin|onnx|safetensors)', ds, flags=re.I)))
+          summary={
+              "checkpoint_like_names": names,
+              "pulled_kernel_files": sorted(str(p.relative_to(root)) for p in (root/"kernels").rglob("*") if p.is_file()),
+          }
+          (root/"summary.json").write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          PY
+
+      - name: Archive A4 discovery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a4-public-discovery
+          retention-days: 30
+          if-no-files-found: warn
+          path: out/a4-discovery/**
