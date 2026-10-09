@@ -21,7 +21,7 @@ jobs:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
       COMPETITION: rsna-knee-abnormality-detection
       KERNEL_ID: chrishotza/rsna-exp-a2-dsr1
-      SUBMISSION_MESSAGE: "EXP-A2 | DSR-1 specialist router | candidate=8406ffc16c57803bdb684a110aaf47162e982833"
+      SUBMISSION_MESSAGE: "EXP-A2 | DSR-1 specialist router | candidate=5e6cdc9b490c1efcf52a9f93147a208ad78fe3e1"
 
     steps:
       - name: Checkout
