@@ -12,8 +12,8 @@
     0
   ],
   "kernel_id": "chrishotza/rsna-exp-a2-dsr1",
-  "submission_message": "EXP-A2 | DSR-1 specialist router | candidate=5e6cdc9b490c1efcf52a9f93147a208ad78fe3e1",
-  "candidate_blob_sha": "5e6cdc9b490c1efcf52a9f93147a208ad78fe3e1",
+  "submission_message": "EXP-A2 | DSR-1 specialist router | candidate=2f615ab00dca79c177e3d3fda7d8fd72d977ff47",
+  "candidate_blob_sha": "2f615ab00dca79c177e3d3fda7d8fd72d977ff47",
   "intervention": "75% target-specific 3-family routed rank blend + 25% median consensus; hard require resgated_top3+d4_swa3",
-  "note": "EXP-A2 v1 reached Kaggle and failed after all model families completed due to NameError `_j` in router receipt parsing. Fixed by importing json as _j. Ready to push v2 exactly once; duplicate guard remains active."
+  "note": "EXP-A2 v1 failed on missing json alias. v2 completed all model families and router, then failed in final audit because legacy `_coatnet_weight` was absent. v3 restores that audit receipt with the actual DSR-1 three-family weights. Ready to push once."
 }
