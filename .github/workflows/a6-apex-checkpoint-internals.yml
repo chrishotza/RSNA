@@ -1,0 +1,65 @@
+name: A6 inspect Apex checkpoint internals
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-apex-checkpoints.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle torch
+      - name: Download manifest and checkpoints
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6-ck
+          kaggle datasets download -d nartaa/rsna-knee-publication-swa-weights-20261007 -f checkpoint-manifest.json -p out/a6-ck
+          kaggle datasets download -d nartaa/rsna-knee-publication-swa-weights-20261007 -f raptor_ft_alldata_t16_blendjev_oai_d96_r384_swa.pt -p out/a6-ck
+          kaggle datasets download -d nartaa/rsna-knee-publication-swa-weights-20261007 -f raptor_ft_alldata_t16_blendjev_oai_d96_c08_r224_swa.pt -p out/a6-ck
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          for z in Path("out/a6-ck").glob("*.zip"):
+              with zipfile.ZipFile(z) as f:
+                  f.extractall("out/a6-ck")
+          PY
+      - name: Inspect checkpoint metadata
+        run: |
+          python - <<'PY'
+          import json,torch,hashlib
+          from pathlib import Path
+          out={}
+          for p in Path("out/a6-ck").glob("*.pt"):
+              ck=torch.load(p,map_location="cpu",weights_only=False)
+              safe={}
+              for k,v in ck.items():
+                  if k=="model":
+                      safe[k]={"n_keys":len(v),"tensor_shapes":{kk:list(vv.shape) for kk,vv in list(v.items())[:30]}}
+                  elif isinstance(v,(str,int,float,bool,type(None),dict,list,tuple)):
+                      try: json.dumps(v); safe[k]=v
+                      except Exception: safe[k]=repr(v)[:5000]
+                  else:
+                      safe[k]=repr(v)[:5000]
+              out[p.name]={
+                  "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+                  "metadata":safe
+              }
+          mf=Path("out/a6-ck/checkpoint-manifest.json")
+          if mf.exists(): out["manifest"]=json.loads(mf.read_text())
+          Path("out/a6-ck/checkpoint_audit.json").write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2)[:120000])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a6-apex-checkpoint-internals
+          retention-days: 30
+          path: out/a6-ck/**
