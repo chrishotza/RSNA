@@ -1,0 +1,34 @@
+{
+  "status": "IMPLEMENTATION_STARTED",
+  "experiment_id": "EXP-A3",
+  "parent_experiment": "EXP-A0",
+  "relation_to_a2": "orthogonal; does not depend on A2 routing result",
+  "component": "UAM-SEQ independent image reader",
+  "hypothesis": "A new ordered 2.5D sequence reader trained with unstated-aware masked supervision can add complementary signal beyond the current public-family ensemble.",
+  "supervision": {
+    "pseudo_label_source": "pilkwang/rsna-knee-llm-labels",
+    "unstated_policy": "exact 0.5 receives zero weak-label loss",
+    "weak_confidence": "2*abs(y-0.5)",
+    "gold_override": true,
+    "gold_weight": 4
+  },
+  "architecture": {
+    "encoder": "RadImageNet ResNet-50 frozen feature bank",
+    "local_input": "physically ordered adjacent 2.5D triplets",
+    "study_aggregator": "BiGRU + acquisition embeddings + 12 target queries",
+    "folds": 5
+  },
+  "implemented_files": [
+    "docs/EXP_A3_UAM_SEQ.md",
+    "src/a3_uam_seq.py",
+    "tests/test_a3_uam_seq.py"
+  ],
+  "next_build_steps": [
+    "Implement deterministic DICOM geometry sorting and 2.5D feature-bank builder.",
+    "Implement pseudo-label autodiscovery + gold override manifest.",
+    "Implement five-fold head trainer and OOF writer.",
+    "Build dedicated Kaggle training kernel metadata using competition data, LLM labels and pinned RadImageNet weights.",
+    "Train checkpoints and freeze SHA256 receipts before any scoring notebook consumes them."
+  ],
+  "submit_allowed": false
+}
