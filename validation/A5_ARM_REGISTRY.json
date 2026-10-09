@@ -89,10 +89,10 @@
       ]
     },
     "APEX_COATNET_0949": {
-      "role": "CLEAN_PUBLIC_PARENT_COMPONENT",
+      "role": "PUBLIC_PARENT_COMPONENT_ONLY",
       "public_lb": 0.949,
-      "provenance": "TRAINED_ON_4349_NON_GOLD_STUDIES_DECLARED",
-      "gold58_allowed": true,
+      "provenance": "OAI_TRAINED_AND_GOLD58_REUSED_FOR_SELECTION_DEVELOPMENT",
+      "gold58_allowed": false,
       "source": "sujanmajhisuzan/rsna-knee-apex-grandmaster-stack",
       "checkpoint": "raptor_ft_alldata_t16_blendjev_oai_d96_r384_swa.pt",
       "architecture": "coatnet_rmlp_2_rw_384.sw_in12k_ft_in1k",
@@ -101,15 +101,16 @@
       "incumbent_gold58_macro": 0.8923,
       "bootstrap_win_fraction": 0.927,
       "notes": [
-        "Notebook states expanded training corpus uses 4,349 labelled non-gold studies; 58 studies are held as gate.",
-        "Gold58 delta versus incumbent CoAtNet: +0.0131.",
-        "Largest reported target gains: Lateral Meniscus +0.071, Fracture +0.057, Lateral OA +0.048, Medial Meniscus +0.035, ACL +0.028."
+        "Public hidden-test evidence is valid: the published checkpoint scored 0.949.",
+        "External audit of TianK003/RSNA-KneeMRI-kaggle-competition documents that this checkpoint includes 2,399 OAI knees and that gold58 was reused during selection/development.",
+        "The author's no-OAI version reportedly scored about 0.942; OAI contributed about +0.005 in the author's table, confounded with additional optimization.",
+        "Therefore aggregate gold58 AUC metadata is diagnostic only and MUST NOT enter A6 promotion gates as independent validation."
       ]
     },
     "APEX_0950": {
       "role": "PUBLIC_PARENT",
       "public_lb": 0.95,
-      "provenance": "PARENT_COMPOSED_FROM_CLEAN_COATNET_PLUS_CLEAN_CONVNEXT",
+      "provenance": "PUBLIC_HIDDEN_TEST_PARENT; COMPONENT GOLD58 DEVELOPMENT IS NOT INDEPENDENT",
       "gold58_allowed": false,
       "source": "sujanmajhisuzan/rsna-knee-apex-grandmaster-stack",
       "components": [
@@ -131,8 +132,10 @@
         "Fracture": 0.08
       },
       "notes": [
-        "Final fusion is target-specific rank-space blend followed by percentile re-ranking.",
-        "This replaces D4-lite 0.945 as the public score frontier for A6."
+        "Public score 0.950 is valid hidden-test evidence.",
+        "Uses the OAI-trained 0.949 CoAtNet plus the public 2.5D ConvNeXt reader in target-specific rank fusion.",
+        "Do not use Apex component gold58 AUCs as unbiased validation because the CoAt checkpoint reused gold58 during model selection/development.",
+        "OAI eligibility/access remains a rule-risk item and is not silently assumed for a final submission."
       ]
     }
   },
@@ -190,6 +193,7 @@
     "public_lb": 0.95,
     "stretch_target": 0.97,
     "required_macro_gain": 0.02,
-    "required_cumulative_target_auc_gain": 0.24
+    "required_cumulative_target_auc_gain": 0.24,
+    "validation_note": "APEX_0950 is a public score anchor, not a clean gold58 validation anchor."
   }
 }
