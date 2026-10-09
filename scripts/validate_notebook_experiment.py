@@ -55,6 +55,13 @@ def load_notebook(path: Path) -> dict[str, Any]:
     return notebook
 
 
+def comparable_metadata(notebook: dict[str, Any]) -> dict[str, Any]:
+    """Compare notebook execution metadata while ignoring the experiment label."""
+    metadata = json.loads(json.dumps(notebook.get("metadata", {})))
+    metadata.pop("rsna_experiment", None)
+    return metadata
+
+
 def normalize_a0_recovery_cell(notebook: dict[str, Any]) -> None:
     if len(notebook["cells"]) <= 23:
         raise ValueError("Expected 25-cell A0 notebook with cell 23 arm-blend cell")
@@ -104,6 +111,9 @@ def validate(
         raise ValueError(
             f"candidate metadata experiment id {meta.get('id')!r} != {experiment_id!r}"
         )
+
+    if comparable_metadata(baseline_original) != comparable_metadata(candidate):
+        raise ValueError("Notebook execution metadata changed beyond the rsna_experiment annotation")
 
     baseline = json.loads(json.dumps(baseline_original))
     normalize_a0_recovery_cell(baseline)
