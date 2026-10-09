@@ -1,1 +1,1 @@
-PAUSE EXP-A1. Do not push, run, submit, resubmit, or modify Kaggle work. Preserve the already-running A1 attempt and inspect its existing result only.
+TRIGGER PROVEN WORKFLOW ID FOR EXP-A2 DSR-1. The workflow file now targets A2 only. Duplicate guard required; submit exactly once.
