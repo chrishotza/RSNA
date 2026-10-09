@@ -40,7 +40,9 @@ def macro_auc(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, np.ndarray
     for j, label in enumerate(LABELS):
         yy = y[:, j]
         pp = p[:, j]
-        mask = np.isfinite(yy) & np.isfinite(pp)
+        mask = np.isfinite(yy)
+        if not np.isfinite(pp[mask]).all():
+            raise ValueError("prediction coverage is incomplete for labeled targets")
         yy, pp = yy[mask], pp[mask]
 
         if np.unique(yy).size < 2:
