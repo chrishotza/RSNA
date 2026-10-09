@@ -1,34 +1,14 @@
 {
-  "status": "IMPLEMENTATION_STARTED",
-  "experiment_id": "EXP-A3",
-  "parent_experiment": "EXP-A0",
-  "relation_to_a2": "orthogonal; does not depend on A2 routing result",
-  "component": "UAM-SEQ independent image reader",
-  "hypothesis": "A new ordered 2.5D sequence reader trained with unstated-aware masked supervision can add complementary signal beyond the current public-family ensemble.",
-  "supervision": {
-    "pseudo_label_source": "pilkwang/rsna-knee-llm-labels",
-    "unstated_policy": "exact 0.5 receives zero weak-label loss",
-    "weak_confidence": "2*abs(y-0.5)",
-    "gold_override": true,
-    "gold_weight": 4
-  },
-  "architecture": {
-    "encoder": "RadImageNet ResNet-50 frozen feature bank",
-    "local_input": "physically ordered adjacent 2.5D triplets",
-    "study_aggregator": "BiGRU + acquisition embeddings + 12 target queries",
-    "folds": 5
-  },
-  "implemented_files": [
-    "docs/EXP_A3_UAM_SEQ.md",
-    "src/a3_uam_seq.py",
-    "tests/test_a3_uam_seq.py"
-  ],
-  "next_build_steps": [
-    "Implement deterministic DICOM geometry sorting and 2.5D feature-bank builder.",
-    "Implement pseudo-label autodiscovery + gold override manifest.",
-    "Implement five-fold head trainer and OOF writer.",
-    "Build dedicated Kaggle training kernel metadata using competition data, LLM labels and pinned RadImageNet weights.",
-    "Train checkpoints and freeze SHA256 receipts before any scoring notebook consumes them."
-  ],
-  "submit_allowed": false
+  "status":"RADICAL_REDESIGN_IMPLEMENTED_CORE",
+  "experiment_id":"EXP-A3",
+  "codename":"A3-RANK",
+  "parent_experiment":"EXP-A0",
+  "relation_to_a2":"orthogonal; A2 routes existing families, A3 learns a new reader and metric-aligned supervision geometry",
+  "component":"rank-first target-routed ordered MRI reader",
+  "hypothesis":"Confidence-weighted AUC pair ranking plus target-specific acquisition routing over ordered 2.5D MRI evidence can create a stronger and less correlated predictor.",
+  "supervision":{"unstated_policy":"0.5 is unlabeled","weak_confidence":"2*abs(y-0.5)","gold_override":true,"gold_weight":4,"primary_loss":"pairwise AUC surrogate","auxiliary_loss":"masked soft BCE","point_weight":0.35,"rank_weight":0.65,"minimum_pair_target_gap":0.35},
+  "architecture":{"encoder":"RadImageNet ResNet-50 frozen deterministic feature bank","local_input":"physically ordered adjacent 2.5D triplets","study_aggregator":"BiGRU + target queries","target_router":"learned target x acquisition-type attention bias","folds":5},
+  "causal_ablation_order":["A3-1 pointwise UAM baseline","A3-2 rank-first objective","A3-3 target-specific acquisition router","A3-4 scanner/site stress validation","A3-5 complementarity versus parent"],
+  "next_build_steps":["Build deterministic DICOM geometry + 2.5D feature bank","Build acquisition-type vocabulary","Build pseudo-label + gold manifest","Build variable-length collator","Build five-fold A3-1/A3-2/A3-3 trainer","Write OOF/gold/rank-correlation diagnostics"],
+  "submit_allowed":false
 }
