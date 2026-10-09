@@ -219,6 +219,7 @@ jobs:
           found=false
           for i in $(seq 1 20); do
             kaggle competitions submissions "$COMPETITION" -v -q > out/a1/submissions-after-submit.csv
+            set +e
             python - <<'PY'
           import csv, json, os, sys
           from pathlib import Path
@@ -242,6 +243,7 @@ jobs:
           print("A1 public score:",chosen.get("publicScore","not yet available"))
           PY
             rc=$?
+            set -e
             if [ "$rc" -eq 0 ]; then found=true; break; fi
             if [ "$rc" -ne 10 ]; then echo "Could not safely recover A1 ref (rc=$rc); do not submit again."; exit 1; fi
             sleep 30
