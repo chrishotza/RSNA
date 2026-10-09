@@ -1,10 +1,10 @@
 {
   "schema": "a6_097_gap_budget_v1",
   "parent": "APEX_0950",
-  "parent_public_lb": 0.950,
-  "target_public_lb": 0.970,
-  "macro_gain_required": 0.020,
-  "cumulative_target_auc_gain_required": 0.240,
+  "parent_public_lb": 0.95,
+  "target_public_lb": 0.97,
+  "macro_gain_required": 0.02,
+  "cumulative_target_auc_gain_required": 0.24,
   "priority_targets": {
     "Synovitis": {
       "convnext_weight_in_apex": 0.03,
@@ -30,28 +30,58 @@
   "gain_scenarios": [
     {
       "name": "four_target_attack",
-      "per_target_gain": 0.060,
+      "per_target_gain": 0.06,
       "targets": 4,
-      "cumulative_gain": 0.240,
-      "macro_gain": 0.020,
-      "projected_score_if_transfer_is_exact": 0.970
+      "cumulative_gain": 0.24,
+      "macro_gain": 0.02,
+      "projected_score_if_transfer_is_exact": 0.97
     },
     {
       "name": "six_target_broad",
-      "per_target_gain": 0.040,
+      "per_target_gain": 0.04,
       "targets": 6,
-      "cumulative_gain": 0.240,
-      "macro_gain": 0.020,
-      "projected_score_if_transfer_is_exact": 0.970
+      "cumulative_gain": 0.24,
+      "macro_gain": 0.02,
+      "projected_score_if_transfer_is_exact": 0.97
     },
     {
       "name": "eight_target_shallow",
-      "per_target_gain": 0.030,
+      "per_target_gain": 0.03,
       "targets": 8,
-      "cumulative_gain": 0.240,
-      "macro_gain": 0.020,
-      "projected_score_if_transfer_is_exact": 0.970
+      "cumulative_gain": 0.24,
+      "macro_gain": 0.02,
+      "projected_score_if_transfer_is_exact": 0.97
     }
   ],
-  "warning": "These are arithmetic score budgets, not predictions. Hidden-test transfer must be demonstrated independently."
+  "warning": "These are arithmetic score budgets, not predictions. Hidden-test transfer must be demonstrated independently.",
+  "discovered_levers": {
+    "resolution_router": {
+      "status": "UNCONFIRMED",
+      "evidence": "clean gold58 checkpoint metadata",
+      "conservative_pre_registered_targets": [
+        "MCL",
+        "Effusion"
+      ],
+      "gold_cumulative_auc_delta": 0.0489204377403136,
+      "arithmetic_macro_delta_if_exactly_transferred": 0.00407670314502613,
+      "warning": "diagnostic arithmetic only; do not add to expected public score until independently confirmed"
+    },
+    "apex_attention_adapter": {
+      "status": "AWAITING_CLEAN_HOLDOUT_EVALUATION",
+      "targets": [
+        "PF OA",
+        "Synovitis",
+        "Lateral OA",
+        "Lateral Meniscus"
+      ],
+      "intervention": "fixed target-slot log prior over existing 94-window full-coverage Apex attention"
+    },
+    "teacher_upgrade": {
+      "status": "FROZEN",
+      "audit_run": 37983404784,
+      "global_teacher": "hybrid report_labels_v4hybrid",
+      "synovitis_teacher": "steven llm_labels_v2",
+      "training_gold_rows": 0
+    }
+  }
 }
