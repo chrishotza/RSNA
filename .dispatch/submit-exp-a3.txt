@@ -1,0 +1,3 @@
+EXP-A3 real competition submission trigger
+kernel=chrishotza/rsna-exp-a3-rank-submit
+mode=independent_parallel_submission
