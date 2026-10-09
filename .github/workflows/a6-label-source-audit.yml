@@ -1,0 +1,40 @@
+name: A6 weak-label source audit
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-label-sources.txt"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle pandas numpy scikit-learn pyarrow
+      - name: Download public label sources
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6-labels/pilkwang out/a6-labels/steven out/a6-labels/hybrid out/a6-labels/qwen
+          kaggle datasets download -d pilkwang/rsna-knee-llm-labels -p out/a6-labels/pilkwang --unzip
+          kaggle datasets download -d stevenleehans/rsna-knee-llm-report-labels -p out/a6-labels/steven --unzip
+          kaggle datasets download -d flight0234/rsna-knee-hybrid-report-labels -p out/a6-labels/hybrid --unzip
+          kaggle datasets download -d laymond/rsna-knee-abnormality-qwen3-8b-weak-labels -p out/a6-labels/qwen --unzip
+      - name: Audit label tables
+        run: |
+          python scripts/audit_a6_label_sources.py             --competition /kaggle/input/rsna-knee-abnormality-detection             --source pilkwang=out/a6-labels/pilkwang             --source steven=out/a6-labels/steven             --source hybrid=out/a6-labels/hybrid             --source qwen=out/a6-labels/qwen             --out out/a6-labels/a6_label_source_audit.json
+      - name: Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-label-source-audit
+          retention-days: 30
+          path: out/a6-labels/**
