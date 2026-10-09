@@ -1,5 +1,5 @@
 {
-  "status": "RESEARCH_BLOCKED",
+  "status": "CANDIDATE_BUILT",
   "experiment_id": "EXP-A2",
   "parent_experiment": "EXP-A0",
   "parent_artifact": "notebooks/A0_public_0941/a0-submitted-freeze.ipynb",
@@ -21,11 +21,27 @@
     "implication": "Do not copy generic preprocessing fixes from other public notebooks without matching the exact checkpoint contract."
   },
   "blockers": [
-    "Record official EXP-A1 ref 56988112 score and diagnostics.",
-    "Capture exact ANCHOR-B source/version and dependency/input list.",
-    "Diff ANCHOR-B preprocessing, models, routing and blend against frozen A0.",
-    "Select one attributable intervention; do not combine architecture, geometry and weights in one experiment.",
-    "Obtain local/OOF or paired evidence where possible, plus runtime/full-coverage checks."
+    "Record the exact official result of EXP-A1 ref 56988112.",
+    "Run static syntax/diff validation for the A2 notebook.",
+    "Verify the full hidden-scale runtime still fits the competition cap with all three families.",
+    "Do not submit if the required resgated_top3 and d4_swa3 CoAt members are not both available."
   ],
-  "submit_allowed": false
+  "submit_allowed": false,
+  "candidate_notebook": "notebooks/experiments/EXP-A2-deterministic-specialist-router.ipynb",
+  "intervention": "DSR-1 deterministic target-specialist three-family router",
+  "changed_cells": [
+    0,
+    22
+  ],
+  "router": {
+    "families": [
+      "Transformer/DINO/A5/Rad",
+      "Raptor",
+      "CoAt(resgated+D4)"
+    ],
+    "routed_fraction": 0.75,
+    "robust_consensus_fraction": 0.25,
+    "failure_policy": "hard fail if either CoAt specialist is missing",
+    "output": "rank-projected 12-target predictions"
+  }
 }
