@@ -35,6 +35,9 @@ def macro_auc(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, np.ndarray
     if y.ndim != 2 or p.shape != y.shape or y.shape[1] != len(LABELS):
         raise ValueError("expected (n_studies, 12) arrays with identical shape")
 
+    if np.isinf(y).any():
+        raise ValueError("targets contain infinity; use NaN only for unaddressed labels")
+
     aucs = np.full(len(LABELS), np.nan, dtype=float)
 
     for j, label in enumerate(LABELS):
@@ -67,7 +70,7 @@ def validate_oof(
 
     if len(ids) != len(folds):
         raise ValueError("study_ids and fold_ids have different lengths")
-    if ids.isna().any() or ids.duplicated().any():
+    if ids.isna().any() or ids.str.strip().eq("").any() or ids.duplicated().any():
         raise ValueError("study IDs must be non-null and unique")
     if folds.isna().any() or (folds < 0).any():
         raise ValueError("fold IDs must be non-negative integers")
