@@ -72,7 +72,7 @@ jobs:
           code="\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
           compile(code,"a3-a3-2-submit.ipynb","exec")
           req=[
-            "a3_a3-2_fold0.pt",
+            "a3_a3-2_fold",
             "VARIANTS[\"A3-2\"]",
             "infer_fold_from_checkpoint",
             "A3-RANK A3-2",
