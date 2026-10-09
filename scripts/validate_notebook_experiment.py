@@ -143,10 +143,11 @@ def validate(
     ):
         if base_cell.get("cell_type") != candidate_cell.get("cell_type"):
             raise ValueError(f"cell {index} type changed")
-        if base_cell.get("cell_type") != "code":
-            continue
-        if text(base_cell) != text(candidate_cell):
-            changed_code_cells.append(index)
+        if base_cell.get("cell_type") == "code":
+            if text(base_cell) != text(candidate_cell):
+                changed_code_cells.append(index)
+        elif index != 0 and text(base_cell) != text(candidate_cell):
+            raise ValueError(f"non-banner cell {index} content changed")
     if changed_code_cells != [changed_cell]:
         raise ValueError(
             f"Expected only code cell {changed_cell} to differ; got {changed_code_cells}"
