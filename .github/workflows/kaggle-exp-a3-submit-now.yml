@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           kaggle kernels push -p build/a3-now --no-run 2>&1 | tee out/a3-now/kernel-save.txt
-          version="$(sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' out/a3-now/kernel-save.txt | tail -n 1)"
+          version="$(grep -Eo 'Kernel version [0-9]+' out/a3-now/kernel-save.txt | grep -Eo '[0-9]+' | tail -n 1)"
           test -n "$version" || { echo "Could not parse A3 kernel version"; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "$version" > out/a3-now/kernel-version.txt
