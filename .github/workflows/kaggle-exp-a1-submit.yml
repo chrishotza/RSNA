@@ -1,0 +1,271 @@
+name: Kaggle EXP-A1 single controlled submission
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/submit-exp-a1.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a1
+  cancel-in-progress: true
+
+jobs:
+  a1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      COMPETITION: rsna-knee-abnormality-detection
+      KERNEL_ID: chrishotza/rsna-exp-a1-amp-auto-t4
+      SUBMISSION_MESSAGE: "EXP-A1 | AMP auto for T4 | candidate=59c67221089cd611e317a5464731b07df0447da4"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Duplicate-submission guard
+        id: guard
+        run: |
+          set -euo pipefail
+          mkdir -p out/a1
+          kaggle competitions submissions "$COMPETITION" -v -q > out/a1/submissions-preflight.csv
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a1/submissions-preflight.csv").open()))
+          matches=[]
+          for row in rows:
+              low={str(k).lower():v for k,v in row.items()}
+              desc=str(low.get("description","") or "").strip()
+              if desc == target:
+                  matches.append(row)
+
+          Path("out/a1/preexisting-a1-submissions.json").write_text(
+              json.dumps(matches,indent=2,ensure_ascii=False)
+          )
+          if matches:
+              print("A1 submission already exists; this run will NOT push or submit again.")
+              for row in matches:
+                  print(row)
+              Path(os.environ["GITHUB_OUTPUT"]).write_text("already_exists=true\n",encoding="utf-8")
+          else:
+              print("No prior A1 submission found. Guard passed; at most one submission may be created.")
+              Path(os.environ["GITHUB_OUTPUT"]).write_text("already_exists=false\n",encoding="utf-8")
+          PY
+
+      - name: Report prior A1 result without rerunning it
+        if: steps.guard.outputs.already_exists == 'true'
+        run: |
+          set -euo pipefail
+          cat out/a1/preexisting-a1-submissions.json
+          echo "STOP: duplicate guard prevented all kernel pushes and new submissions."
+
+      - name: Validate candidate and build Kaggle bundle
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p build/a1 out/a1
+          cp notebooks/experiments/EXP-A1-amp-auto-t4.ipynb build/a1/exp-a1-amp-auto-t4.ipynb
+          cp notebooks/A0_public_0941/kernel-metadata.json build/a1/kernel-metadata.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          def read_nb(path):
+              return json.loads(Path(path).read_text(encoding="utf-8"))
+
+          def src(cell):
+              value=cell.get("source",[])
+              return "".join(value) if isinstance(value,list) else str(value)
+
+          base=read_nb("notebooks/A0_public_0941/rsna-knee-blend-full.ipynb")
+          cand=read_nb("build/a1/exp-a1-amp-auto-t4.ipynb")
+          assert len(base["cells"]) == len(cand["cells"]) == 25, "Notebook cell count changed."
+
+          assert "AMP_PREF = 'bf16'" in src(base["cells"][19]).splitlines()[0], "Unexpected frozen A0 AMP baseline."
+          assert "AMP_PREF = 'auto'" in src(cand["cells"][19]).splitlines()[0], "EXP-A1 AMP change missing."
+
+          noop=[
+              "# A0 RECOVERY BASELINE\n",
+              "# The documented arm checkpoints are currently unavailable from Kaggle.\n",
+              "# Preserve the untouched parent pipeline so the first external score measures\n",
+              "# the reproducible 0.940/0.941 reference path rather than a failed blend.\n",
+              "print('[A0_RECOVERY] Arm checkpoints unavailable; leaving _pipeline_stage.csv unchanged.')\n",
+          ]
+          base["cells"][23]["source"]=noop
+          base["cells"][23]["execution_count"]=None
+          base["cells"][23]["outputs"]=[]
+
+          differences=[]
+          for i,(a,b) in enumerate(zip(base["cells"],cand["cells"])):
+              if a.get("cell_type") != b.get("cell_type"):
+                  differences.append((i,"cell type"))
+                  continue
+              if a.get("cell_type") != "code":
+                  continue
+              aa,bb=src(a),src(b)
+              if i == 19:
+                  if aa.split("\n")[1:] != bb.split("\n")[1:]:
+                      differences.append((i,"unexpected changes after AMP declaration"))
+              elif aa != bb:
+                  differences.append((i,"unexpected code change"))
+
+          assert not differences, f"More than one functional code line changed: {differences}"
+          assert "[A0_RECOVERY]" in src(cand["cells"][23]), "A0 arm blend no-op is missing."
+          assert cand["metadata"].get("rsna_experiment",{}).get("id") == "EXP-A1", "Candidate experiment metadata missing."
+
+          mp=Path("build/a1/kernel-metadata.json")
+          meta=json.loads(mp.read_text(encoding="utf-8"))
+          meta["id"]="chrishotza/rsna-exp-a1-amp-auto-t4"
+          meta["title"]="rsna-exp-a1-amp-auto-t4"
+          meta["code_file"]="exp-a1-amp-auto-t4.ipynb"
+          meta["is_private"]=True
+          meta["enable_gpu"]=True
+          meta["enable_internet"]=False
+          meta["machine_shape"]="NvidiaTeslaT4"
+          mp.write_text(json.dumps(meta,indent=2),encoding="utf-8")
+
+          print("EXP-A1 validation PASS")
+          print("Only functional difference from the A0 recovery source: cell 19 AMP_PREF bf16 -> auto.")
+          print("Expected T4 capability=7.5 branch: FP16.")
+          print("Kernel:",meta["id"])
+          print("Notebook bytes:",Path("build/a1/exp-a1-amp-auto-t4.ipynb").stat().st_size)
+          PY
+
+      - name: Push EXP-A1 once
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          set +e
+          kaggle kernels push -p build/a1 2>&1 | tee out/a1/kernel-push.txt
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "Kaggle kernel push failed (rc=$rc); no competition submission was attempted."
+            exit "$rc"
+          fi
+
+          kernel_version="$(sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' out/a1/kernel-push.txt | tail -n 1)"
+          test -n "$kernel_version" || { echo "Could not recover kernel version from push output; stopping before submit."; exit 1; }
+          echo "kernel_version=$kernel_version" >> "$GITHUB_ENV"
+          echo "Kaggle kernel version: $kernel_version" | tee out/a1/kernel-version.txt
+
+      - name: Wait for the public-sample kernel run
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 180); do
+            set +e
+            status="$(kaggle kernels status "$KERNEL_ID" 2>&1)"
+            rc=$?
+            set -e
+            echo "[$i] $status"
+            printf '%s\n' "$status" > out/a1/kernel-status-latest.txt
+
+            case "$status" in
+              *"KernelWorkerStatus.COMPLETE"*|*"status \"complete\""*|*"COMPLETE"*) exit 0 ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*|*"status \"error\""*|*"FAILED"*) echo "Kernel failed; no competition submission will be made."; exit 1 ;;
+            esac
+            if [ "$rc" -ne 0 ]; then echo "Kaggle status query returned rc=$rc"; fi
+            sleep 60
+          done
+          echo "Timed out waiting for the public-sample run. No competition submission was made."
+          exit 1
+
+      - name: Submit EXP-A1 exactly once
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+
+          # Last-chance duplicate guard immediately before the only submit call.
+          kaggle competitions submissions "$COMPETITION" -v -q > out/a1/submissions-before-submit.csv
+          python - <<'PY'
+          import csv, os, sys
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a1/submissions-before-submit.csv").open()))
+          for row in rows:
+              if str(row.get("description","") or "").strip() == target:
+                  print("DUPLICATE GUARD: target A1 submission already exists; refusing another submit.")
+                  print(row)
+                  sys.exit(9)
+          PY
+
+          set +e
+          kaggle competitions submit "$COMPETITION" \
+            -k "$KERNEL_ID" \
+            -v "$kernel_version" \
+            -f submission.csv \
+            -m "$SUBMISSION_MESSAGE" \
+            2>&1 | tee out/a1/submission-submit.txt
+          submit_rc=${PIPESTATUS[0]}
+          set -e
+          echo "submit_rc=$submit_rc" | tee out/a1/submit-return-code.txt
+
+          # Some Kaggle CLI builds omit the numeric ref from the submit response;
+          # recover it from history rather than ever calling submit a second time.
+          found=false
+          for i in $(seq 1 20); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/a1/submissions-after-submit.csv
+            python - <<'PY'
+          import csv, json, os, sys
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a1/submissions-after-submit.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip() == target]
+          if not matches:
+              print("A1 submission ref not visible in history yet.")
+              sys.exit(10)
+          def key(row):
+              return str(row.get("date","") or row.get("submitted","") or "") + "|" + str(row.get("ref","") or row.get("id",""))
+          chosen=sorted(matches,key=key)[-1]
+          ref=str(chosen.get("ref","") or chosen.get("id","")).strip()
+          if not ref.isdigit():
+              print("Matched A1 row lacks numeric ref:",chosen)
+              sys.exit(11)
+          Path("out/a1/submission-ref.txt").write_text(ref+"\n",encoding="utf-8")
+          Path("out/a1/submission-initial-status.json").write_text(json.dumps(chosen,indent=2),encoding="utf-8")
+          print("A1 submission ref:",ref)
+          print("A1 initial status:",chosen.get("status"))
+          print("A1 public score:",chosen.get("publicScore","not yet available"))
+          PY
+            rc=$?
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            if [ "$rc" -ne 10 ]; then echo "Could not safely recover A1 ref (rc=$rc); do not submit again."; exit 1; fi
+            sleep 30
+          done
+
+          if [ "$found" != true ]; then
+            echo "Submit call completed with rc=$submit_rc but ref is not yet visible."
+            echo "DO NOT RESUBMIT. Inspect submissions history; no second submit was attempted."
+            exit 1
+          fi
+
+          if [ "$submit_rc" -ne 0 ]; then
+            echo "Warning: submit CLI rc=$submit_rc, but an exact A1 submission ref exists in history."
+          fi
+
+          echo "Exactly one EXP-A1 competition submission has been issued. Later status checks must be read-only."
+
+      - name: Archive EXP-A1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a1-single-submission
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            out/a1/**
+            build/a1/**
