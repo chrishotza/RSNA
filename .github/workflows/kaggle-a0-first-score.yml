@@ -2,7 +2,15 @@ name: Kaggle A0 score audit
 
 on:
   workflow_dispatch:
-  pull_request:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/a0-audit.txt
+
+concurrency:
+  group: rsna-a0-score-audit
+  cancel-in-progress: false
 
 jobs:
   audit:
@@ -11,7 +19,6 @@ jobs:
       contents: read
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-      A0_SUBMISSION_REF: "56906411"
       A0_MESSAGE: "A0 parent baseline recovery — first external calibration score"
 
     steps:
@@ -23,102 +30,106 @@ jobs:
           python -m pip install --upgrade kaggle
           kaggle --version
 
-      - name: Audit existing A0 submissions only
+      - name: Discover existing A0 submissions only
         run: |
           set -euo pipefail
           mkdir -p out/a0
-
-          echo "IMPORTANT: audit-only workflow; it will NOT create, run, or submit any Kaggle notebook."
-
+          echo "AUDIT ONLY: this workflow does not push, run, or submit any Kaggle notebook."
           kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/a0/all-submissions.csv
 
           python - <<'PY'
-          import csv, json
+          import csv, json, sys
           from pathlib import Path
 
           p=Path("out/a0/all-submissions.csv")
           rows=list(csv.DictReader(p.open()))
           target="A0 parent baseline recovery — first external calibration score"
 
-          def field(r, *names):
-              for n in names:
-                  v=r.get(n)
-                  if v is not None and str(v).strip():
-                      return str(v).strip()
+          def field(row, *names):
+              low={str(k).lower(): v for k,v in row.items()}
+              for name in names:
+                  val=low.get(name.lower())
+                  if val is not None and str(val).strip():
+                      return str(val).strip()
               return ""
 
           matches=[]
-          for r in rows:
-              desc=field(r,"description","title","message")
-              if desc == target or target in desc:
-                  matches.append(r)
+          for row in rows:
+              desc=field(row,"description","title","message")
+              if target in desc:
+                  ref=field(row,"ref","id","submissionref","submission_ref")
+                  if ref.isdigit():
+                      matches.append({"ref":ref,"description":desc,"row":row})
 
-          print("A0 matching submissions:", len(matches))
-          for r in matches:
-              print({
-                  "ref": field(r,"ref","id","submissionRef"),
-                  "status": field(r,"status","submissionStatus"),
-                  "publicScore": field(r,"publicScore","public_score","public"),
-                  "submitted": field(r,"submitted","submissionDate","date","created"),
-              })
+          if not matches:
+              print("No A0 submissions matched.")
+              print("CSV headers:", list(rows[0].keys()) if rows else [])
+              print("Sample rows:", rows[:3])
+              sys.exit(2)
+
+          # Deduplicate refs without losing order.
+          dedup={}
+          for item in matches:
+              dedup[item["ref"]]=item
+          matches=list(dedup.values())
 
           Path("out/a0/a0-matching-submissions.json").write_text(
               json.dumps(matches, indent=2, ensure_ascii=False)
           )
-
-          target_ref="56906411"
-          selected=None
-          for r in matches:
-              if field(r,"ref","id","submissionRef") == target_ref:
-                  selected=r
-                  break
-
-          if selected:
-              Path("out/a0/a0-selected.json").write_text(
-                  json.dumps(selected, indent=2, ensure_ascii=False)
-              )
-              print("Selected A0 ref:", target_ref)
-          else:
-              print("WARNING: expected A0 ref 56906411 was not present in the history response.")
+          Path("out/a0/a0-refs.txt").write_text(
+              "".join(item["ref"]+"\n" for item in matches)
+          )
+          print("Matching A0 submissions:",len(matches))
+          for item in matches:
+              print("A0_REF",item["ref"])
+              print("DESCRIPTION",item["description"])
           PY
 
-          kaggle competitions submission "$A0_SUBMISSION_REF" | tee out/a0/submission-status-live.txt
-
-      - name: Poll selected A0 submission
+      - name: Poll every existing A0 submission
         run: |
           set -euo pipefail
-          mkdir -p out/a0
+          mapfile -t refs < out/a0/a0-refs.txt
+          test "${#refs[@]}" -gt 0
 
           for i in $(seq 1 720); do
-            echo "=== poll $i ==="
-            set +e
-            status="$(kaggle competitions submission "$A0_SUBMISSION_REF" 2>&1 | tee out/a0/submission-status-live.txt)"
-            rc=${PIPESTATUS[0]}
-            set -e
+            pending=0
+            echo "=== audit pass $i / 720; refs=${#refs[@]} ==="
 
-            echo "$status"
+            for ref in "${refs[@]}"; do
+              outfile="out/a0/status-${ref}.txt"
+              set +e
+              kaggle competitions submission "$ref" > "$outfile" 2>&1
+              rc=$?
+              set -e
+              echo "--- ref $ref (CLI rc=$rc) ---"
+              cat "$outfile"
 
-            if grep -qiE '^Status:[[:space:]]*COMPLETE|^Status:[[:space:]]*SUBMISSIONSTATUS\.COMPLETE' out/a0/submission-status-live.txt; then
-              grep -iE '^(Submission Ref|Status|Public Score|Private Score|Description|Submission Date):'                 out/a0/submission-status-live.txt | tee out/a0/final-score.txt
+              state="$(sed -n 's/^[Ss]tatus:[[:space:]]*//p' "$outfile" | head -n 1 | tr '[:lower:]' '[:upper:]' | tr -d '\r')"
+              state="${state#SUBMISSIONSTATUS.}"
+
+              if [[ "$state" == "COMPLETE" || "$state" == "SUCCEEDED" || "$state" == "SUCCESS" ]]; then
+                grep -iE '^(Submission Ref|Status|Public Score|Private Score|Description|Submission Date):' "$outfile" || true
+              elif [[ "$state" == "ERROR" || "$state" == "FAILED" || "$state" == "REJECTED" ]]; then
+                echo "TERMINAL_FAILURE ref=$ref state=$state"
+              else
+                pending=$((pending+1))
+                echo "STILL_PENDING ref=$ref state=${state:-UNKNOWN}"
+              fi
+            done
+
+            if [ "$pending" -eq 0 ]; then
+              echo "All existing A0 submissions are terminal; no new submission was created."
               exit 0
             fi
 
-            if grep -qiE '^Status:[[:space:]]*(ERROR|FAILED|REJECTED)|^Status:[[:space:]]*SUBMISSIONSTATUS\.(ERROR|FAILED|REJECTED)' out/a0/submission-status-live.txt; then
-              cat out/a0/submission-status-live.txt
-              exit 1
-            fi
-
-            if [ "$rc" -ne 0 ]; then
-              echo "Kaggle status query returned rc=$rc; retrying."
-            fi
-
+            echo "Pending A0 submissions: $pending"
             sleep 30
           done
 
-          echo "Timed out waiting for A0 ref $A0_SUBMISSION_REF"
+          echo "At least one A0 submission remained pending after 12 hours."
           exit 1
 
-      - name: Archive A0 audit evidence
+      - name: Archive A0 score audit
         if: always()
         uses: actions/upload-artifact@v4
         with:
