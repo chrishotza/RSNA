@@ -1,0 +1,90 @@
+name: Kaggle EXP-A3 submit verified v1
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/submit-exp-a3-final.txt
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      COMPETITION: rsna-knee-abnormality-detection
+      KERNEL_ID: chrishotza/rsna-exp-a3-a3-2-submit
+      KERNEL_VERSION: "1"
+      SUBMISSION_MESSAGE: "EXP-A3 | A3-2 rank-first inference-only"
+
+    steps:
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Download and validate A3 v1 outputs
+        run: |
+          set -euo pipefail
+          mkdir -p out/a3-submit
+          kaggle kernels output "$KERNEL_ID" -p out/a3-submit -o
+          python - <<'PY'
+          import csv, json, math
+          from pathlib import Path
+          p=Path("out/a3-submit/submission.csv")
+          r=Path("out/a3-submit/a3_submission_receipt.json")
+          if not p.is_file(): raise SystemExit("A3 submission.csv missing")
+          if not r.is_file(): raise SystemExit("A3 receipt missing")
+          receipt=json.loads(r.read_text())
+          if receipt.get("model")!="A3-RANK A3-2": raise SystemExit("wrong A3 variant")
+          rows=list(csv.reader(p.open()))
+          if len(rows)<2 or len(rows[0])!=13: raise SystemExit("bad A3 shape")
+          for row in rows[1:]:
+              if len(row)!=13: raise SystemExit("bad A3 row")
+              for x in row[1:]:
+                  v=float(x)
+                  if not math.isfinite(v) or v<0 or v>1: raise SystemExit("bad A3 value")
+          print(f"A3 submission validated rows={len(rows)-1}")
+          print(json.dumps(receipt,indent=2))
+          PY
+
+      - name: Submit A3 v1 to competition
+        run: |
+          set -euo pipefail
+          kaggle competitions submit "$COMPETITION"             -k "$KERNEL_ID"             -v "$KERNEL_VERSION"             -f submission.csv             -m "$SUBMISSION_MESSAGE"             2>&1 | tee out/a3-submit/submit.txt
+
+      - name: Verify A3 submission row
+        run: |
+          set -euo pipefail
+          found=false
+          for i in $(seq 1 20); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/a3-submit/submissions.csv
+            python - <<'PY'
+          import csv, os, sys, json
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a3-submit/submissions.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if not matches:
+              sys.exit(10)
+          row=matches[-1]
+          print("FOUND A3 SUBMISSION")
+          print(json.dumps(row,indent=2))
+          Path("out/a3-submit/submission-found.json").write_text(json.dumps(row,indent=2))
+          PY
+            rc=$?
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            sleep 15
+          done
+          test "$found" = true || { echo "A3 submission not visible"; exit 1; }
+
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a3-submit-v1
+          retention-days: 30
+          path: out/a3-submit/**
