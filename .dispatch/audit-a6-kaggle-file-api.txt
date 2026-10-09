@@ -1,0 +1,1 @@
+inspect Kaggle file API pagination for selective gold58 access
