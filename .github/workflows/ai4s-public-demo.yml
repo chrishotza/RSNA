@@ -20,6 +20,8 @@ jobs:
           mkdir -p ai4s_video
           curl --fail --show-error --silent --location --retry 3 -o ai4s_video/ai4s-v10-narrated.mp4 "$VIDEO_SOURCE"
           test "$(stat -c%s ai4s_video/ai4s-v10-narrated.mp4)" -gt 1000000
+      - name: Install ffmpeg probe
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Verify content has both video and spoken audio
         run: |
           ffprobe -v error -show_entries format=duration:stream=codec_type,codec_name,width,height -of json ai4s_video/ai4s-v10-narrated.mp4 > ai4s_video/video-provenance.json
@@ -38,7 +40,7 @@ jobs:
           import json
           d={"title":"AI4S 2026 Temporal Cellular Phenotype Engine narrated demo V10",
              "id":"chrishotza/ai4s-2026-temporal-cellular-phenotype-demo",
-             "licenses":[{"name":"CC0-1.0"}],
+             "licenses":[{"name":"other"}],
              "subtitle":"91-second demo: real CellposeSAM-v2 microscopy predictions and temporal behavior analysis",
              "description":"AI4S 2026 computational science demonstration. Image-derived CellposeSAM-v2 masks and tracked cells, with a separate internal 168-frame CTC evaluation. Descriptive phenotypes, not independently validated biological cell states. Upstream CTC image/data and model rights are retained by their respective owners."}
           open("ai4s_video/dataset-metadata.json","w").write(json.dumps(d,indent=2))
