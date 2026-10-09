@@ -1,0 +1,110 @@
+name: Kaggle EXP-A4 contract extraction
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/extract-exp-a4-contracts.txt
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Pull candidate notebooks
+        run: |
+          set -euo pipefail
+          mkdir -p out/a4-contracts
+          for ref in             tonylica/rsna-knee-infer             xuanleekaggle/rsna-knee-copy-nk
+          do
+            slug="${ref#*/}"
+            mkdir -p "out/a4-contracts/$slug"
+            kaggle kernels pull "$ref" -p "out/a4-contracts/$slug" -m
+          done
+
+      - name: Extract DINO and Biomed contracts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,re
+
+          root=Path("out/a4-contracts")
+          pats=[
+              r"best_dinov3_finetuned_384",
+              r"dinov3",
+              r"biomedclip",
+              r"open_clip",
+              r"AutoModel",
+              r"timm\.create_model",
+              r"load_state_dict",
+              r"torch\.load",
+              r"IMG\s*=",
+              r"CROP_MM\s*=",
+              r"N_SLICE\s*=",
+              r"SLOTS\s*=",
+              r"normalize",
+              r"mean",
+              r"std",
+          ]
+          rx=re.compile("|".join(pats),re.I)
+          out=[]
+          for p in root.rglob("*"):
+              if not p.is_file() or p.suffix.lower() not in {".py",".ipynb",".json"}: continue
+              try:
+                  txt=p.read_text(errors="replace")
+              except Exception:
+                  continue
+              if p.suffix==".ipynb":
+                  try:
+                      nb=json.loads(txt)
+                      txt="\n".join("".join(c.get("source",[])) for c in nb.get("cells",[]) if c.get("cell_type")=="code")
+                  except Exception:
+                      pass
+              lines=txt.splitlines()
+              hits=[i for i,l in enumerate(lines) if rx.search(l)]
+              if not hits: continue
+              keep=set()
+              for i in hits:
+                  for j in range(max(0,i-8),min(len(lines),i+14)):
+                      keep.add(j)
+              out.append(f"===== {p} =====")
+              last=-2
+              for j in sorted(keep):
+                  if j>last+1: out.append("...")
+                  out.append(f"{j+1:05d}: {lines[j]}")
+                  last=j
+          Path("out/a4-contracts/contracts.txt").write_text("\n".join(out))
+          print("\n".join(out))
+          PY
+
+      - name: Inspect dataset file manifests
+        run: |
+          set -uo pipefail
+          {
+            echo "===== tim9510019/rsna-knee-v34-master-models ====="
+            kaggle datasets files tim9510019/rsna-knee-v34-master-models --page-size 200 -v
+            echo "===== tonylica/rsna2026-models ====="
+            kaggle datasets files tonylica/rsna2026-models --page-size 200 -v
+          } 2>&1 | tee out/a4-contracts/datasets.txt
+
+      - name: Archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a4-contracts
+          retention-days: 30
+          path: out/a4-contracts/**
