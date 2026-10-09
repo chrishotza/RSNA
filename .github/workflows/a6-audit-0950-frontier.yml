@@ -1,0 +1,90 @@
+name: A6 audit public 0950 frontier
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-0950-frontier.txt"
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: Pull 0.950 notebook
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6/apex out/a6/credible
+          kaggle kernels pull sujanmajhisuzan/rsna-knee-apex-grandmaster-stack -p out/a6/apex -m
+          kaggle datasets download -d tomdifiore/rsna-knee-credible-checkpoints -p out/a6/credible --unzip
+      - name: Forensic extraction
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,re,hashlib,os
+          from pathlib import Path
+          root=Path("out/a6/apex")
+          p=next(root.glob("*.ipynb"))
+          nb=json.loads(p.read_text())
+          code="\n".join("".join(c.get("source",[])) for c in nb.get("cells",[]) if c.get("cell_type")=="code")
+          pats=[
+            r"0\.95[0-9][^\n]{0,240}",
+            r"blend[^\n]{0,320}",
+            r"weight[^\n]{0,320}",
+            r"rank[^\n]{0,320}",
+            r"target[^\n]{0,320}",
+            r"model_sources[^\n]{0,600}",
+            r"dataset_sources[^\n]{0,600}",
+            r"kernel_sources[^\n]{0,600}",
+            r"convnext[^\n]{0,320}",
+            r"coatnet[^\n]{0,320}",
+            r"dino[^\n]{0,320}",
+            r"raptor[^\n]{0,320}",
+            r"radimagenet[^\n]{0,320}",
+            r"submission[^\n]{0,320}",
+            r"_pipeline_stage[^\n]{0,320}",
+          ]
+          hits=[]
+          for pat in pats:
+            ms=re.findall(pat,code,re.I)
+            if ms:
+              hits.append({"pattern":pat,"matches":ms[:120]})
+          meta=json.loads((root/"kernel-metadata.json").read_text())
+          credible=[]
+          for f in sorted(Path("out/a6/credible").rglob("*")):
+            if f.is_file():
+              info={"path":str(f.relative_to("out/a6/credible")),"size":f.stat().st_size}
+              if f.suffix.lower() in {".json",".txt",".md",".csv"} and f.stat().st_size < 2_000_000:
+                try:
+                  txt=f.read_text(errors="replace")
+                  info["preview"]=txt[:30000]
+                except Exception:
+                  pass
+              credible.append(info)
+          report={
+            "apex_notebook":p.name,
+            "apex_sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+            "apex_cells":len(nb.get("cells",[])),
+            "metadata":meta,
+            "hits":hits,
+            "credible_files":credible,
+          }
+          Path("out/a6/frontier_audit.json").write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2)[:120000])
+          PY
+      - name: Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-0950-frontier-audit
+          retention-days: 30
+          path: out/a6/**
