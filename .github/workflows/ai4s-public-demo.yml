@@ -38,7 +38,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
-          d={"title":"AI4S 2026 Temporal Cellular Phenotype Engine narrated demo V10",
+          d={"title":"AI4S 2026 Cell Phenotype Demo V10",
              "id":"chrishotza/ai4s-2026-temporal-cellular-phenotype-demo",
              "licenses":[{"name":"other"}],
              "subtitle":"91-second demo: real CellposeSAM-v2 microscopy predictions and temporal behavior analysis",
