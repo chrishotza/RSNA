@@ -506,8 +506,8 @@ from pydicom.pixel_data_handlers.util import apply_modality_lut
 from torch.utils.data import DataLoader
 from torchvision.models import resnet50
 
-from src.a3_feature_bank import SliceRecord, acquisition_type_id, build_series_window_manifest, sort_slice_records
-from src.a3_training import VARIANTS, FeatureBankDataset, build_model, collate_feature_bank, compute_objective
+
+
 
 START=time.time()
 WORK=Path("/kaggle/working")
