@@ -1,1 +1,1 @@
-trigger A3 v2
+trigger A3 v2 self-contained retry
