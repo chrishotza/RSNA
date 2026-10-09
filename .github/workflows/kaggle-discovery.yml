@@ -220,8 +220,8 @@ jobs:
           cp kaggle/a6_teacher_export/a6_smoke.ipynb a6_push/
           python - <<'PY'
           import json
-          data={"id":"chrishotza/rsna-a6-raptor-three-study-smoke",
-                "title":"RSNA A6 Raptor three-study smoke",
+          data={"id":"chrishotza/rsna-a6-raptor-full-teacher",
+                "title":"RSNA A6 Raptor full teacher extraction",
                 "code_file":"a6_smoke.ipynb",
                 "language":"python","kernel_type":"notebook",
                 "is_private":True,"enable_gpu":True,"enable_internet":True,
