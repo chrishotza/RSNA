@@ -29,10 +29,26 @@ jobs:
           kaggle datasets download -d stevenleehans/rsna-knee-llm-report-labels -p out/a6-labels/steven --unzip
           kaggle datasets download -d flight0234/rsna-knee-hybrid-report-labels -p out/a6-labels/hybrid --unzip
           kaggle datasets download -d laymond/rsna-knee-abnormality-qwen3-8b-weak-labels -p out/a6-labels/qwen --unzip
+      - name: Download train.csv only
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6-labels/competition
+          kaggle competitions download -c rsna-knee-abnormality-detection -f train.csv -p out/a6-labels/competition
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          root=Path("out/a6-labels/competition")
+          for p in root.glob("*.zip"):
+              with zipfile.ZipFile(p) as z:
+                  z.extractall(root)
+          assert (root/"train.csv").is_file()
+          print(root/"train.csv")
+          PY
       - name: Audit label tables
         run: |
-          python scripts/audit_a6_label_sources.py             --competition /kaggle/input/rsna-knee-abnormality-detection             --source pilkwang=out/a6-labels/pilkwang             --source steven=out/a6-labels/steven             --source hybrid=out/a6-labels/hybrid             --source qwen=out/a6-labels/qwen             --out out/a6-labels/a6_label_source_audit.json
+          python scripts/audit_a6_label_sources.py --competition out/a6-labels/competition --source pilkwang=out/a6-labels/pilkwang --source steven=out/a6-labels/steven --source hybrid=out/a6-labels/hybrid --source qwen=out/a6-labels/qwen --out out/a6-labels/a6_label_source_audit.json
       - name: Archive
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: a6-label-source-audit
