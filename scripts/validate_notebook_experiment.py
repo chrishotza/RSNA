@@ -3,8 +3,8 @@
 
 This script never contacts Kaggle and never runs model inference.
 It validates that a candidate notebook has exactly one allowed functional code change
-against the frozen A0 source. The known A0 recovery no-op in cell 23 is normalized
-on both sides so the comparison reflects the actually measured 0.940 baseline.
+against the frozen A0 source. The exact A0 submission is frozen as a separate notebook. Cell 23 is checked,
+not silently normalized, so source drift fails the gate.
 """
 from __future__ import annotations
 
@@ -62,15 +62,14 @@ def comparable_metadata(notebook: dict[str, Any]) -> dict[str, Any]:
     return metadata
 
 
-def normalize_a0_recovery_cell(notebook: dict[str, Any]) -> None:
+def verify_a0_recovery_cell(notebook: dict[str, Any], role: str) -> None:
     if len(notebook["cells"]) <= 23:
-        raise ValueError("Expected 25-cell A0 notebook with cell 23 arm-blend cell")
+        raise ValueError(f"Expected 25-cell {role} notebook with cell 23 recovery cell")
     cell = notebook["cells"][23]
     if cell.get("cell_type") != "code":
-        raise ValueError("Expected cell 23 to be the arm-blend code cell")
-    set_text(cell, "".join(A0_ARM_NOOP))
-    cell["execution_count"] = None
-    cell["outputs"] = []
+        raise ValueError(f"Expected cell 23 to be the {role} recovery code cell")
+    if text(cell) != "".join(A0_ARM_NOOP):
+        raise ValueError(f"{role} cell 23 must be the exact measured A0 recovery no-op; refusing to normalize source drift")
 
 
 def check_python_syntax(notebook: dict[str, Any]) -> None:
@@ -116,10 +115,8 @@ def validate(
         raise ValueError("Notebook execution metadata changed beyond the rsna_experiment annotation")
 
     baseline = json.loads(json.dumps(baseline_original))
-    normalize_a0_recovery_cell(baseline)
-    if text(candidate["cells"][23]) != "".join(A0_ARM_NOOP):
-        raise ValueError("Candidate cell 23 must preserve the measured A0 recovery no-op")
-
+    verify_a0_recovery_cell(baseline, "baseline")
+    verify_a0_recovery_cell(candidate, "candidate")
     if not 0 <= changed_cell < len(candidate["cells"]):
         raise ValueError("changed cell index is outside notebook")
     base_lines = text(baseline["cells"][changed_cell]).splitlines()
