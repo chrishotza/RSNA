@@ -1,14 +1,19 @@
 {
-  "status": "COMPLETE_PENDING_SCORE",
-  "experiment_id": "EXP-A1",
+  "status": "READY",
+  "experiment_id": "EXP-A2",
   "parent_experiment": "EXP-A0",
   "baseline_notebook": "notebooks/A0_public_0941/a0-submitted-freeze.ipynb",
-  "candidate_notebook": "notebooks/experiments/EXP-A1-amp-auto-t4.ipynb",
-  "changed_cell": 19,
-  "before": "AMP_PREF = 'bf16'",
-  "after": "AMP_PREF = 'auto'",
-  "kernel_id": "chrishotza/rsna-exp-a1-amp-auto-t4",
-  "submission_message": "EXP-A1 | AMP auto for T4 | candidate=59c67221089cd611e317a5464731b07df0447da4",
-  "submission_ref": "56988112",
-  "note": "User reports EXP-A1 ref 56988112 finished. Exact official score/result row is not yet recorded in this repository. Do not resubmit EXP-A1. Research may continue, but no next experiment can become READY until the score and diagnostics are recorded."
+  "candidate_notebook": "notebooks/experiments/EXP-A2-deterministic-specialist-router.ipynb",
+  "validation_mode": "full_cell",
+  "allowed_code_cells": [
+    22
+  ],
+  "allowed_markdown_cells": [
+    0
+  ],
+  "kernel_id": "chrishotza/rsna-exp-a2-dsr1",
+  "submission_message": "EXP-A2 | DSR-1 specialist router | candidate=8406ffc16c57803bdb684a110aaf47162e982833",
+  "candidate_blob_sha": "8406ffc16c57803bdb684a110aaf47162e982833",
+  "intervention": "75% target-specific 3-family routed rank blend + 25% median consensus; hard require resgated_top3+d4_swa3",
+  "note": "Bold scoring experiment. One submit only. If save/submit history is ambiguous, recover by exact message and never resubmit automatically."
 }
