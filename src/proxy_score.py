@@ -76,7 +76,7 @@ def score_oof_file(
     target_prefix: str = "y_",
     pred_prefix: str = "p_",
 ) -> dict:
-    """Score a CSV containing OOF targets/predictions."""
+    """Score OOF predictions with one unique row per study and fixed fold provenance."""
     df = pd.read_csv(path)
 
     true_cols = [target_prefix + label for label in LABELS]
