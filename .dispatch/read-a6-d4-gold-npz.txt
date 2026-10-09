@@ -1,0 +1,1 @@
+read public D4 gold58 reference NPZ contract
