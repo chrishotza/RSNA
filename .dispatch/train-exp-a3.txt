@@ -1,5 +1,1 @@
-EXP-A3 A3-RANK Kaggle code push
-forced_retrigger=2026-10-09-parallel
-reason=run_A3_independently_in_parallel_with_A2
-kernel=chrishotza/rsna-exp-a3-a3-rank-training
-mode=kaggle-code-only-no-competition-submit
+A3 training retry self-contained core
