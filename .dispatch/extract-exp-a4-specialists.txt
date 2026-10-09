@@ -1,0 +1,1 @@
+extract A4 BiomedCLIP and DINOv3 specialist contracts
