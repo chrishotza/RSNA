@@ -9,7 +9,9 @@ Freeze a reproducible parent before modifying anything.
 Source:
 NTejas-1/RSNA-Knee-Abnormality-Detection
 
-Reported public LB: 0.941.
+Reported upstream public LB: 0.941. Our measured public score is 0.940 across four repeated evaluations of the same kernel version.
+
+Exact measured snapshot: `notebooks/A0_public_0941/a0-submitted-freeze.ipynb`. The source notebook retains an experimental cell-23 appended blend and is not the measured A0 artifact.
 
 Run the public implementation as a Kaggle Competition Notebook with no source modifications.
 
