@@ -1,1 +1,1 @@
-RUN EXPERIMENT EXP-A2 DSR-1. Queue must be READY. Save notebook with --no-run, submit exactly once, then recover the submission ref from history. Never duplicate-submit.
+RUN EXPERIMENT EXP-A2 DSR-1 RETRY-UBUNTU22. Queue must remain READY. Save with --no-run, submit exactly once, recover ref from history, never duplicate-submit.
