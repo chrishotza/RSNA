@@ -1,0 +1,1 @@
+extract exact D4 target weights and gold gate rules
