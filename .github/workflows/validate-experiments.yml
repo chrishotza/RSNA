@@ -1,15 +1,8 @@
 name: RSNA offline experiment gate
 
 on:
-  push:
-    branches:
-      - research
-    paths:
-      - "notebooks/experiments/**"
-      - "scripts/validate_notebook_experiment.py"
-      - "tests/test_validate_notebook_experiment.py"
-      - "src/proxy_score.py"
-      - "tests/test_proxy_score.py"
+  workflow_dispatch:
+
 
 concurrency:
   group: rsna-offline-experiment-gate
