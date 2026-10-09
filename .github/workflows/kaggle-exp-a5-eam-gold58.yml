@@ -14,7 +14,7 @@ jobs:
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
       SOURCE_KERNEL: goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944
-      KERNEL_ID: chrishotza/rsna-exp-a5-eam-gold58
+      KERNEL_ID: chrishotza/rsna-exp-a5-frontier-0944
     steps:
       - name: Install Kaggle CLI
         run: python -m pip install --upgrade kaggle
@@ -224,8 +224,8 @@ jobs:
           nbp.write_text(json.dumps(nb))
           meta=Path("build/a5-eam/kernel-metadata.json")
           m=json.loads(meta.read_text())
-          m["id"]="chrishotza/rsna-exp-a5-eam-gold58"
-          m["title"]="rsna-exp-a5-eam-gold58"
+          m["id"]="chrishotza/rsna-exp-a5-frontier-0944"
+          m["title"]="rsna-exp-a5-frontier-0944"
           m["code_file"]=nbp.name
           m["is_private"]=True
           meta.write_text(json.dumps(m,indent=2))
