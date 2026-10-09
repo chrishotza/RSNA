@@ -1,0 +1,187 @@
+name: Kaggle EXP-A2 single controlled submission
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/submit-exp-a2.txt
+
+concurrency:
+  group: rsna-kaggle-exp-a2
+  cancel-in-progress: true
+
+jobs:
+  a2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      COMPETITION: rsna-knee-abnormality-detection
+      KERNEL_ID: chrishotza/rsna-exp-a2-dsr1
+      SUBMISSION_MESSAGE: "EXP-A2 | DSR-1 specialist router | candidate=8406ffc16c57803bdb684a110aaf47162e982833"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Kaggle CLI
+        run: |
+          python -m pip install --upgrade kaggle
+          kaggle --version
+
+      - name: Duplicate-submission guard
+        id: guard
+        run: |
+          set -euo pipefail
+          mkdir -p out/a2
+          kaggle competitions submissions "$COMPETITION" -v -q > out/a2/submissions-preflight.csv
+          python - <<'PY'
+          import csv, json, os
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a2/submissions-preflight.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          Path("out/a2/preexisting.json").write_text(json.dumps(matches,indent=2))
+          Path(os.environ["GITHUB_OUTPUT"]).write_text(
+              "already_exists="+("true" if matches else "false")+"\n", encoding="utf-8")
+          if matches:
+              print("A2 already exists; no push or submit.")
+              print(matches)
+          else:
+              print("No prior A2 submission. Guard passed.")
+          PY
+
+      - name: Validate candidate and build Kaggle bundle
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p build/a2 out/a2
+          cp notebooks/experiments/EXP-A2-deterministic-specialist-router.ipynb build/a2/exp-a2-dsr1.ipynb
+          cp notebooks/A0_public_0941/kernel-metadata.json build/a2/kernel-metadata.json
+
+          python scripts/validate_notebook_candidate.py             --baseline notebooks/A0_public_0941/a0-submitted-freeze.ipynb             --candidate build/a2/exp-a2-dsr1.ipynb             --experiment-id EXP-A2             --allowed-code-cells 22             --allowed-markdown-cells 0             --require-token "A2_DSR1_three_family_target_router_v1"             --require-token "_ke_required_members = {'resgated_top3', 'd4_swa3'}"             --require-token "0.75 * _routed + 0.25 * _ke_consensus"             --output out/a2/validation.json
+
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("build/a2/kernel-metadata.json")
+          meta=json.loads(p.read_text(encoding="utf-8"))
+          meta["id"]="chrishotza/rsna-exp-a2-dsr1"
+          meta["title"]="rsna-exp-a2-dsr1"
+          meta["code_file"]="exp-a2-dsr1.ipynb"
+          meta["is_private"]=True
+          meta["enable_gpu"]=True
+          meta["enable_internet"]=False
+          meta["machine_shape"]="NvidiaTeslaT4"
+          p.write_text(json.dumps(meta,indent=2),encoding="utf-8")
+          print("A2 bundle ready:",meta["id"])
+          PY
+
+      - name: Push EXP-A2 once
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          set +e
+          kaggle kernels push -p build/a2 2>&1 | tee out/a2/kernel-push.txt
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "Kaggle kernel push failed (rc=$rc); no competition submission attempted."
+            exit "$rc"
+          fi
+          kernel_version="$(sed -n 's/.*Kernel version \([0-9][0-9]*\) successfully pushed.*/\1/p' out/a2/kernel-push.txt | tail -n 1)"
+          test -n "$kernel_version" || { echo "Cannot recover kernel version; stopping."; exit 1; }
+          echo "kernel_version=$kernel_version" >> "$GITHUB_ENV"
+          echo "$kernel_version" > out/a2/kernel-version.txt
+
+      - name: Wait for EXP-A2 kernel run
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 180); do
+            set +e
+            status="$(kaggle kernels status "$KERNEL_ID" 2>&1)"
+            rc=$?
+            set -e
+            echo "[$i] $status"
+            printf '%s\n' "$status" > out/a2/kernel-status-latest.txt
+            case "$status" in
+              *"KernelWorkerStatus.COMPLETE"*|*"status \"complete\""*|*"COMPLETE"*) exit 0 ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*|*"status \"error\""*|*"FAILED"*) echo "Kernel failed; no submit."; exit 1 ;;
+            esac
+            if [ "$rc" -ne 0 ]; then echo "status rc=$rc"; fi
+            sleep 60
+          done
+          echo "Timed out; no submit."
+          exit 1
+
+      - name: Submit EXP-A2 exactly once
+        if: steps.guard.outputs.already_exists != 'true'
+        run: |
+          set -euo pipefail
+          kaggle competitions submissions "$COMPETITION" -v -q > out/a2/submissions-before-submit.csv
+          python - <<'PY'
+          import csv, os, sys
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a2/submissions-before-submit.csv").open()))
+          for row in rows:
+              if str(row.get("description","") or "").strip()==target:
+                  print("DUPLICATE GUARD:",row)
+                  sys.exit(9)
+          PY
+
+          set +e
+          kaggle competitions submit "$COMPETITION"             -k "$KERNEL_ID"             -v "$kernel_version"             -f submission.csv             -m "$SUBMISSION_MESSAGE"             2>&1 | tee out/a2/submission-submit.txt
+          submit_rc=${PIPESTATUS[0]}
+          set -e
+          echo "submit_rc=$submit_rc" > out/a2/submit-return-code.txt
+
+          found=false
+          for i in $(seq 1 20); do
+            kaggle competitions submissions "$COMPETITION" -v -q > out/a2/submissions-after-submit.csv
+            set +e
+            python - <<'PY'
+          import csv, json, os, sys
+          from pathlib import Path
+          target=os.environ["SUBMISSION_MESSAGE"]
+          rows=list(csv.DictReader(Path("out/a2/submissions-after-submit.csv").open()))
+          matches=[r for r in rows if str(r.get("description","") or "").strip()==target]
+          if not matches:
+              sys.exit(10)
+          def key(r):
+              return str(r.get("date","") or r.get("submitted","") or "")+"|"+str(r.get("ref","") or r.get("id",""))
+          row=sorted(matches,key=key)[-1]
+          ref=str(row.get("ref","") or row.get("id","")).strip()
+          if not ref.isdigit():
+              print("No numeric ref:",row); sys.exit(11)
+          Path("out/a2/submission-ref.txt").write_text(ref+"\n")
+          Path("out/a2/submission-initial-status.json").write_text(json.dumps(row,indent=2))
+          print("A2 submission ref:",ref)
+          print("status:",row.get("status"))
+          print("public score:",row.get("publicScore","pending"))
+          PY
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then found=true; break; fi
+            if [ "$rc" -ne 10 ]; then exit 1; fi
+            sleep 30
+          done
+          if [ "$found" != true ]; then
+            echo "Submission invoked once but ref not visible. DO NOT RESUBMIT."
+            exit 1
+          fi
+
+      - name: Archive EXP-A2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: exp-a2-single-submission
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            out/a2/**
+            build/a2/**
