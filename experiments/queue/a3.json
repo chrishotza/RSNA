@@ -1,14 +1,72 @@
 {
-  "status":"RADICAL_REDESIGN_IMPLEMENTED_CORE",
-  "experiment_id":"EXP-A3",
-  "codename":"A3-RANK",
-  "parent_experiment":"EXP-A0",
-  "relation_to_a2":"orthogonal; A2 routes existing families, A3 learns a new reader and metric-aligned supervision geometry",
-  "component":"rank-first target-routed ordered MRI reader",
-  "hypothesis":"Confidence-weighted AUC pair ranking plus target-specific acquisition routing over ordered 2.5D MRI evidence can create a stronger and less correlated predictor.",
-  "supervision":{"unstated_policy":"0.5 is unlabeled","weak_confidence":"2*abs(y-0.5)","gold_override":true,"gold_weight":4,"primary_loss":"pairwise AUC surrogate","auxiliary_loss":"masked soft BCE","point_weight":0.35,"rank_weight":0.65,"minimum_pair_target_gap":0.35},
-  "architecture":{"encoder":"RadImageNet ResNet-50 frozen deterministic feature bank","local_input":"physically ordered adjacent 2.5D triplets","study_aggregator":"BiGRU + target queries","target_router":"learned target x acquisition-type attention bias","folds":5},
-  "causal_ablation_order":["A3-1 pointwise UAM baseline","A3-2 rank-first objective","A3-3 target-specific acquisition router","A3-4 scanner/site stress validation","A3-5 complementarity versus parent"],
-  "next_build_steps":["Build deterministic DICOM geometry + 2.5D feature bank","Build acquisition-type vocabulary","Build pseudo-label + gold manifest","Build variable-length collator","Build five-fold A3-1/A3-2/A3-3 trainer","Write OOF/gold/rank-correlation diagnostics"],
-  "submit_allowed":false
+  "status": "KAGGLE_TRAINING_LAUNCH_READY",
+  "experiment_id": "EXP-A3",
+  "codename": "A3-RANK",
+  "parent_experiment": "EXP-A0",
+  "relation_to_a2": "orthogonal; A2 routes existing families, A3 learns a new reader and metric-aligned supervision geometry",
+  "component": "rank-first target-routed ordered MRI reader",
+  "hypothesis": "Confidence-weighted AUC pair ranking plus target-specific acquisition routing over ordered 2.5D MRI evidence can create a stronger and less correlated predictor.",
+  "supervision": {
+    "unstated_policy": "0.5 is unlabeled",
+    "weak_confidence": "2*abs(y-0.5)",
+    "gold_override": true,
+    "gold_weight": 4,
+    "primary_loss": "pairwise AUC surrogate",
+    "auxiliary_loss": "masked soft BCE",
+    "point_weight": 0.35,
+    "rank_weight": 0.65,
+    "minimum_pair_target_gap": 0.35
+  },
+  "architecture": {
+    "encoder": "RadImageNet ResNet-50 frozen deterministic feature bank",
+    "local_input": "physically ordered adjacent 2.5D triplets",
+    "study_aggregator": "BiGRU + target queries",
+    "target_router": "learned target x acquisition-type attention bias",
+    "folds": 5
+  },
+  "causal_ablation_order": [
+    "A3-1 pointwise UAM baseline",
+    "A3-2 rank-first objective",
+    "A3-3 target-specific acquisition router",
+    "A3-4 scanner/site stress validation",
+    "A3-5 complementarity versus parent"
+  ],
+  "next_build_steps": [
+    "Build deterministic DICOM geometry + 2.5D feature bank",
+    "Build acquisition-type vocabulary",
+    "Build pseudo-label + gold manifest",
+    "Build variable-length collator",
+    "Build five-fold A3-1/A3-2/A3-3 trainer",
+    "Write OOF/gold/rank-correlation diagnostics"
+  ],
+  "submit_allowed": false,
+  "kernel_id": "chrishotza/rsna-exp-a3-rank-train",
+  "training_script": "notebooks/experiments/EXP-A3-rank-train.py",
+  "feature_bank_contract": {
+    "encoder": "RadImageNet ResNet-50 SHA256 08629f7e7bd3e29b8ee9522ca3f65ce4d010a7ddf74f0ea3c7e3f3d0bbab0734",
+    "crop_mm": 130,
+    "image_px": 224,
+    "anchors_per_series": 6,
+    "triplet": "adjacent 2.5D",
+    "slice_order": "DICOM physical geometry; whole-series InstanceNumber fallback"
+  },
+  "kaggle_run_contract": {
+    "variants": [
+      "A3-1 pointwise UAM",
+      "A3-2 rank-first",
+      "A3-3 rank-first + target acquisition router"
+    ],
+    "folds": 5,
+    "epochs_max": 8,
+    "early_stopping_patience": 2,
+    "train_batch": 64,
+    "outputs": [
+      "feature bank receipt",
+      "15 fold checkpoints",
+      "3 OOF files",
+      "3 reports",
+      "A3 comparison receipt"
+    ],
+    "competition_submission": false
+  }
 }
