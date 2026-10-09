@@ -113,3 +113,7 @@ Never submit if:
 - the previous result has not yet been interpreted and recorded.
 
 These are hard stops, not warnings.
+
+## CI status note (2026-10-09)
+
+The offline gate currently uses `workflow_dispatch` only. Push-triggered runs repeatedly ended before any runner was assigned and executed zero steps. No passing test run is recorded; re-enable push triggers after runner allocation works again.
