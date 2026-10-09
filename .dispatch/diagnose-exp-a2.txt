@@ -1,1 +1,1 @@
-inspect A3 training kernel state
+check A3 training v4 status
