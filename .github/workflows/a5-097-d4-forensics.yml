@@ -72,4 +72,29 @@ jobs:
               if ms:
                   print("\n###",pat)
                   print("\n".join(ms[:150]))
+          # exact constant extraction
+          python - <<'PY2'
+          import json,re
+          from pathlib import Path
+          def code(root):
+              p=next(Path(root).glob("*.ipynb"))
+              nb=json.loads(p.read_text())
+              return "\n".join("".join(c.get("source",[])) for c in nb["cells"] if c.get("cell_type")=="code")
+          d4=code("out/d4")
+          gate=code("out/gate")
+          print("===== EXACT CONSTANTS =====")
+          for pat in [
+              r"_coatnet_weight\s*=\s*\{label:\s*0\.60\s*for\s*label\s*in\s*_blend_labels\}\s*_coatnet_weight\.update\((\{.*?\})\)",
+              r"LEGACY_MEMBER_WEIGHT_BY_TARGET\s*=\s*(\{.*?\})",
+              r"LEGACY_FOLD_SOFTPOOL_ALPHA\s*=\s*(\{.*?\})",
+              r"SELECT_RULE\s*=\s*([0-9.]+)",
+              r"N_BOOT\s*=\s*([0-9]+)",
+              r"BOOT\s*=\s*([0-9]+)",
+              r"_OV_W\s*=\s*float\([^\n]+",
+              r"_OV_W2\s*=\s*float\([^\n]+",
+          ]:
+              src=gate if "SELECT_RULE" in pat or "N_BOOT" in pat or "BOOT" in pat else d4
+              m=re.search(pat,src,re.S)
+              print(pat, "=>", m.group(0)[:4000] if m else "NOT FOUND")
+          PY2
           PY
