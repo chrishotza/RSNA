@@ -15,7 +15,7 @@ jobs:
       contents: read
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-      KERNEL_ID: chrishotza/rsna-exp-a2-dsr1
+      KERNEL_ID: chrishotza/rsna-exp-a3-rank-submit
 
     steps:
       - name: Checkout
