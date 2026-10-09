@@ -117,7 +117,7 @@ class UAMSeqHead(nn.Module):
             self.register_parameter("target_type_bias", None)
         self.classifier = nn.Sequential(nn.LayerNorm(token_dim * 4), nn.Linear(token_dim * 4, token_dim), nn.GELU(), nn.Dropout(cfg.dropout), nn.Linear(token_dim, 1))
 
-    def forward(self, features, token_types, token_mask):
+    def forward(self, features, token_types, token_mask, attention_log_prior=None):
         if features.ndim != 3: raise ValueError("features must be [B,T,F]")
         if token_types.shape != features.shape[:2]: raise ValueError("token_types shape mismatch")
         if token_mask.shape != features.shape[:2]: raise ValueError("token_mask shape mismatch")
@@ -130,6 +130,12 @@ class UAMSeqHead(nn.Module):
         if (~valid).all(dim=1).any(): raise ValueError("study has no valid sequence tokens")
         q = self.query_norm(self.queries)
         scores = torch.einsum("btd,qd->bqt", x, q) / math.sqrt(x.shape[-1])
+        if attention_log_prior is not None:
+            if attention_log_prior.shape != scores.shape:
+                raise ValueError("attention_log_prior must be [B,Q,T]")
+            if not torch.isfinite(attention_log_prior).all():
+                raise ValueError("attention_log_prior contains non-finite values")
+            scores = scores + attention_log_prior.to(device=scores.device, dtype=scores.dtype)
         if self.target_type_bias is not None:
             scores = scores + self.target_type_bias[:, token_types.long()].permute(1, 0, 2)
         scores = scores.masked_fill(~valid[:, None, :], torch.finfo(scores.dtype).min)
