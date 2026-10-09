@@ -1,0 +1,54 @@
+name: A6 Kaggle smoke push
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/a6-kaggle-smoke.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - name: Fetch public Raptor implementation
+        run: |
+          git clone --depth 1 https://github.com/mathischmp/challenge_rsna.git external
+          python -m pip install --quiet kaggle
+          python scripts/a6_make_kaggle_notebook.py .
+      - name: Build metadata and publish a Kaggle kernel (NO submission)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${KAGGLE_API_TOKEN:-}" || { echo "::error::Missing KAGGLE_API_TOKEN"; exit 2; }
+          test -n "${KAGGLE_USERNAME:-}" || { echo "::error::Missing KAGGLE_USERNAME"; exit 2; }
+          mkdir -p a6_kaggle_push
+          cp kaggle/a6_teacher_export/a6_smoke.ipynb a6_kaggle_push/
+          python - <<'PY'
+          import os,json
+          username=os.environ['KAGGLE_USERNAME']
+          metadata={
+              'id':f'{username}/rsna-a6-raptor-three-study-smoke',
+              'title':'RSNA A6 Raptor three-study smoke',
+              'code_file':'a6_smoke.ipynb',
+              'language':'python',
+              'kernel_type':'notebook',
+              'is_private':True,
+              'enable_gpu':True,
+              'enable_internet':True,
+              'competition_sources':['rsna-knee-abnormality-detection'],
+              'dataset_sources':['dreaddevelopment/raptor-knee-maxspan']
+          }
+          with open('a6_kaggle_push/kernel-metadata.json','w') as f:json.dump(metadata,f,indent=2)
+          print('Kernel metadata ready, id:',metadata['id'])
+          PY
+          kaggle kernels push -p a6_kaggle_push
+          echo "Pushed Kaggle notebook (not competition submission)"
