@@ -1,0 +1,42 @@
+{
+  "status": "PRE_REGISTERED",
+  "experiment_id": "EXP-A6",
+  "codename": "A6-VIEW-DIVERSITY",
+  "parent": "APEX_0950",
+  "parent_public_lb": 0.95,
+  "stretch_target": 0.97,
+  "training_population": {
+    "source": "RSNA competition train studies",
+    "gold_excluded_before_target_construction": true,
+    "expected_non_gold": 4349,
+    "expected_gold_guardrail": 58
+  },
+  "variants": {
+    "A6-PF": {
+      "focus": ["PF OA"],
+      "view_policy": "pf_axial_dense",
+      "attention_prior_strength": 0.35,
+      "focus_loss_multiplier": 2.0
+    },
+    "A6-SYN": {
+      "focus": ["Synovitis"],
+      "view_policy": "synovitis_fluid_dense",
+      "attention_prior_strength": 0.4,
+      "focus_loss_multiplier": 2.0
+    },
+    "A6-LAT": {
+      "focus": ["Lateral OA","Lateral Meniscus"],
+      "view_policy": "lateral_compartment_dense",
+      "attention_prior_strength": 0.35,
+      "focus_loss_multiplier": 1.75
+    }
+  },
+  "selection": {
+    "primary": "fixed-fold OOF on non-gold studies",
+    "gold58_role": "regression guard only after OOF selection",
+    "minimum_focus_mean_gain": 0.015,
+    "strong_gate": "+0.030 on at least two priority targets or +0.005 macro fused gain",
+    "max_allowed_macro_regression": 0.01
+  },
+  "submit_allowed": false
+}
