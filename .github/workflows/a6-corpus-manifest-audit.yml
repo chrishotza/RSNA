@@ -1,0 +1,60 @@
+name: A6 inspect public corpus manifests
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/audit-a6-corpus-manifests.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+      - name: List candidate dataset files
+        run: |
+          set -euo pipefail
+          mkdir -p out/a6-corpus
+          for ds in             dreaddevelopment/raptor-knee-native384             dreaddevelopment/raptor-knee-native384dense             dreaddevelopment/raptor-knee-maxspan             dreaddevelopment/knee-raptor-corpus             dreaddevelopment/knee-raptor-corpus-ext             nartaa/rsna-knee-publication-swa-weights-20261007
+          do
+            slug="$(echo "$ds" | tr '/' '_')"
+            echo "===== $ds =====" | tee "out/a6-corpus/${slug}.txt"
+            kaggle datasets files -d "$ds" --csv 2>&1 | tee -a "out/a6-corpus/${slug}.txt" || true
+          done
+      - name: Summarize manifests
+        run: |
+          python - <<'PY'
+          import csv,json,re
+          from pathlib import Path
+          report={}
+          for p in Path("out/a6-corpus").glob("*.txt"):
+              txt=p.read_text(errors="replace")
+              rows=[]
+              for line in txt.splitlines():
+                  if line.startswith("name,") or not "," in line:
+                      continue
+                  parts=line.split(",")
+                  if len(parts)>=2:
+                      rows.append({"line":line[:1000]})
+              report[p.stem]={
+                  "bytes_of_listing":len(txt),
+                  "lines":len(txt.splitlines()),
+                  "interesting":[x for x in txt.splitlines() if any(k in x.lower() for k in [
+                      "all_ids","uid","study","vol","mask","npy","npz","pt","json","csv","parquet","tar","zip"
+                  ])][:500],
+              }
+          Path("out/a6-corpus/manifest_summary.json").write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2)[:120000])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a6-corpus-manifests
+          retention-days: 30
+          path: out/a6-corpus/**
