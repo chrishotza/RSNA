@@ -1,0 +1,35 @@
+name: A6 inspect D4 gold NPZ
+
+on:
+  push:
+    branches: [research]
+    paths:
+      - ".dispatch/read-a6-d4-gold-npz.txt"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install --upgrade kaggle numpy
+      - name: Download NPZ
+        run: |
+          mkdir -p out/a6-d4-npz
+          kaggle datasets download -d mattiaangeli/rsna-knee-coatnet-d4-depthzone-swa3-b2 -f d4_gold58_reference.npz -p out/a6-d4-npz --unzip
+      - name: Inspect
+        run: |
+          python scripts/inspect_npz_contract.py out/a6-d4-npz/d4_gold58_reference.npz out/a6-d4-npz/contract.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a6-d4-gold-npz
+          retention-days: 30
+          path: out/a6-d4-npz/**
