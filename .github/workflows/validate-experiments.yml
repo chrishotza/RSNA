@@ -7,10 +7,10 @@ on:
     paths:
       - "notebooks/experiments/**"
       - "scripts/validate_notebook_experiment.py"
-      - "experiments/queue/active.json"
-      - "experiments/ledger.csv"
-      - "experiments/submissions.csv"
-      - "docs/EXPERIMENT_SYSTEM.md"
+
+concurrency:
+  group: rsna-offline-experiment-gate
+  cancel-in-progress: true
 
 permissions:
   contents: read
