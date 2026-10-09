@@ -1,4 +1,4 @@
-name: Kaggle A0 score audit
+name: RSNA read-only submission status audit
 
 on:
   workflow_dispatch:
@@ -9,17 +9,19 @@ on:
       - .dispatch/a0-audit.txt
 
 concurrency:
-  group: rsna-a0-score-audit
+  group: rsna-read-only-submission-status
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   audit:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
+    timeout-minutes: 10
     env:
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-      A0_MESSAGE: "A0 parent baseline recovery — first external calibration score"
+      COMPETITION: rsna-knee-abnormality-detection
 
     steps:
       - name: Checkout
@@ -30,115 +32,61 @@ jobs:
           python -m pip install --upgrade kaggle
           kaggle --version
 
-      - name: Discover existing A0 submissions only
+      - name: Query existing submission history only
         run: |
           set -euo pipefail
-          mkdir -p out/a0
-          echo "AUDIT ONLY: this workflow does not push, run, or submit any Kaggle notebook."
-          kaggle competitions submissions rsna-knee-abnormality-detection -v -q > out/a0/all-submissions.csv
-
+          mkdir -p out/status
+          echo "READ-ONLY AUDIT: this workflow never runs kernels and never calls competitions submit."
           python - <<'PY'
-          import csv, json, sys
+          import json
           from pathlib import Path
-
-          p=Path("out/a0/all-submissions.csv")
-          rows=list(csv.DictReader(p.open()))
-          target="A0 parent baseline recovery — first external calibration score"
-
-          def field(row, *names):
-              low={str(k).lower(): v for k,v in row.items()}
-              for name in names:
-                  val=low.get(name.lower())
-                  if val is not None and str(val).strip():
-                      return str(val).strip()
-              return ""
-
-          matches=[]
-          for row in rows:
-              desc=field(row,"description","title","message")
-              if target in desc:
-                  ref=field(row,"ref","id","submissionref","submission_ref")
-                  if ref.isdigit():
-                      matches.append({"ref":ref,"description":desc,"row":row})
-
-          if not matches:
-              print("No A0 submissions matched.")
-              print("CSV headers:", list(rows[0].keys()) if rows else [])
-              print("Sample rows:", rows[:3])
-              sys.exit(2)
-
-          # Deduplicate refs without losing order.
-          dedup={}
-          for item in matches:
-              dedup[item["ref"]]=item
-          matches=list(dedup.values())
-
-          Path("out/a0/a0-matching-submissions.json").write_text(
-              json.dumps(matches, indent=2, ensure_ascii=False)
-          )
-          Path("out/a0/a0-refs.txt").write_text(
-              "".join(item["ref"]+"\n" for item in matches)
-          )
-          print("Matching A0 submissions:",len(matches))
-          for item in matches:
-              print("A0_REF",item["ref"])
-              print("DESCRIPTION",item["description"])
+          q=json.loads(Path("experiments/queue/active.json").read_text(encoding="utf-8"))
+          ref=str(q.get("submission_ref","")).strip()
+          if not ref.isdigit():
+              raise SystemExit(f"Queue has no numeric submission_ref: {ref!r}")
+          Path("out/status/ref.txt").write_text(ref+"\n")
+          Path("out/status/queue-snapshot.json").write_text(json.dumps(q,indent=2))
+          print("Experiment:",q.get("experiment_id"))
+          print("Submission ref:",ref)
           PY
 
-      - name: Report current status and public score for every existing A0 ref
-        run: |
-          set -euo pipefail
+          kaggle competitions submissions "$COMPETITION" -v -q > out/status/submissions-history.csv
+
           python - <<'PY'
           import csv, json
           from pathlib import Path
-
-          data=list(csv.DictReader(Path("out/a0/all-submissions.csv").open()))
-          target="A0 parent baseline recovery — first external calibration score"
+          ref=Path("out/status/ref.txt").read_text().strip()
+          rows=list(csv.DictReader(Path("out/status/submissions-history.csv").open()))
 
           def field(row,*names):
-              low={str(k).lower(): v for k,v in row.items()}
+              low={str(k).lower():v for k,v in row.items()}
               for name in names:
                   value=low.get(name.lower())
                   if value is not None and str(value).strip():
                       return str(value).strip()
               return ""
 
-          matches=[]
-          for row in data:
-              desc=field(row,"description","title","message")
-              if target in desc:
-                  matches.append({
-                      "ref":field(row,"ref","id","submissionref"),
-                      "date":field(row,"date","submitted","submissiondate"),
-                      "status":field(row,"status","submissionstatus"),
-                      "public_score":field(row,"publicScore","public_score"),
-                      "private_score":field(row,"privateScore","private_score"),
-                      "description":desc,
-                  })
-
+          matches=[row for row in rows if field(row,"ref","id","submissionref","submission_ref")==ref]
           if not matches:
-              raise SystemExit("No A0 submissions found in current Kaggle history.")
-
-          summary=[]
-          for item in matches:
-              line=(f"REF={item['ref']} | STATUS={item['status']} | "
-                    f"PUBLIC_SCORE={item['public_score'] or 'not available'} | "
-                    f"PRIVATE_SCORE={item['private_score'] or 'not available'} | DATE={item['date']}")
-              print(line)
-              summary.append(line)
-
-          Path("out/a0/a0-current-status.json").write_text(
-              json.dumps(matches,indent=2,ensure_ascii=False)
-          )
-          Path("out/a0/final-score-summary.txt").write_text("\n".join(summary)+"\n")
-          print("READ-ONLY AUDIT COMPLETE; no notebook runs or competition submissions created.")
+              raise SystemExit(f"Ref {ref} was not found in Kaggle submission history.")
+          row=matches[-1]
+          status={
+              "submission_ref":ref,
+              "status":field(row,"status","submissionstatus"),
+              "public_score":field(row,"publicScore","public_score"),
+              "private_score":field(row,"privateScore","private_score"),
+              "date":field(row,"date","submitted","submissiondate"),
+              "description":field(row,"description","message"),
+          }
+          Path("out/status/status.json").write_text(json.dumps(status,indent=2),encoding="utf-8")
+          print(json.dumps(status,indent=2))
           PY
 
-      - name: Archive A0 score audit
+      - name: Archive read-only status evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: a0-score-audit
+          name: rsna-submission-status
           retention-days: 30
           if-no-files-found: warn
-          path: out/a0/**
+          path: out/status/**
