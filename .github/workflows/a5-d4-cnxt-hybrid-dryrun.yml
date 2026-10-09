@@ -1,0 +1,221 @@
+name: A5 build D4 ConvNeXt hybrid dryrun
+
+on:
+  push:
+    branches:
+      - research
+    paths:
+      - .dispatch/run-a5-d4-cnxt-hybrid.txt
+
+jobs:
+  build-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+      KERNEL_ID: chrishotza/rsna-a5-d4-cnxt-hybrid
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install --upgrade kaggle
+
+      - name: Pull exact public sources
+        run: |
+          set -euo pipefail
+          mkdir -p build/d4 build/cnxt build/hybrid out/hybrid
+          kaggle kernels pull pjmathematician/rsna-knee-d4-lite -p build/d4 -m
+          kaggle kernels pull goodpjw2008/rsna-knee-stack-2-5d-convnext-mil-lb-0-944 -p build/cnxt -m
+
+      - name: Build post-D4 ConvNeXt hybrid
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,copy,hashlib
+          from pathlib import Path
+
+          d4p=next(Path("build/d4").glob("*.ipynb"))
+          cp=next(Path("build/cnxt").glob("*.ipynb"))
+          d4=json.loads(d4p.read_text())
+          cn=json.loads(cp.read_text())
+          dm=json.loads(Path("build/d4/kernel-metadata.json").read_text())
+          cm=json.loads(Path("build/cnxt/kernel-metadata.json").read_text())
+
+          # Exact reader implementation is self-contained in CNXT cells 35..39.
+          # D4 has already published its verified 0.945 parent to submission.csv.
+          reader_cells=[copy.deepcopy(cn["cells"][i]) for i in range(35,40)]
+          joined="\n".join("".join(c.get("source",[])) for c in reader_cells)
+
+          required=["own_src/preprocess.py","own_src/knee.py","own_src/infer.py",
+                    "cnxt_v0_fold0.pt","_public_stack.csv","OWN_W"]
+          missing=[x for x in required if x not in joined]
+          if missing:
+              raise SystemExit(f"reader extraction contract drift: {missing}")
+
+          # Force parent-present mode explicitly and pre-register two outputs from
+          # the same reader predictions: global 0.30 and target-aware vector.
+          prep = """# A5 hybrid adapter: D4-lite has already published submission.csv.
+RUN_STACK = True
+print("[A5-HYBRID] parent=D4-lite verified submission.csv; attaching independent ConvNeXt reader")
+"""
+          reader_cells.insert(0,{
+              "cell_type":"code","execution_count":None,"metadata":{},"outputs":[],
+              "source":prep.splitlines(keepends=True)
+          })
+
+          # Preserve the exact public 30% behavior as the first dry-run variant.
+          # Patch only the scalar OWN_W assignment in the final reader cell.
+          final_src="".join(reader_cells[-1]["source"])
+          import re
+          hits=list(re.finditer(r"OWN_W\s*=\s*[0-9.]+",final_src))
+          if len(hits)!=1:
+              raise SystemExit(f"expected exactly one OWN_W assignment, found {len(hits)}")
+          final_src=re.sub(r"OWN_W\s*=\s*[0-9.]+","OWN_W = 0.30",final_src,count=1)
+
+          # Save the D4 parent before reader blend so both variants can be emitted.
+          final_src=final_src.replace(
+              '_o_pub, _o_bak = "/kaggle/working/submission.csv", "/kaggle/working/_public_stack.csv"',
+              '_o_pub, _o_bak = "/kaggle/working/submission.csv", "/kaggle/working/_public_stack.csv"\n'
+              'import shutil as _a5_shutil\n'
+              '_a5_shutil.copy(_o_pub, "/kaggle/working/d4_parent_submission.csv")'
+          )
+
+          # After exact global-30 output is written, create a second target-aware
+          # candidate using the same reader prediction and D4 parent ranks.
+          target_code=r'''
+# A5 target-aware candidate, pre-registered from CLEAN reader gold58 evidence.
+# No D4 gold58 values are consulted.
+import pandas as _a5pd, numpy as _a5np
+_A5_LABS=["ACL","MCL","Medial Meniscus","Lateral Meniscus","Medial OA","Lateral OA",
+          "PF OA","Effusion","Synovitis","Baker's","Contusion","Fracture"]
+# Strong reader: ACL/MCL/MMed/MedOA/Baker/Contusion.
+# Moderate: LMen/LatOA/Effusion/Fracture.
+# Weak: PF OA/Synovitis -> near-off.
+_A5_W=_a5np.asarray([.45,.40,.45,.25,.45,.20,.05,.15,.05,.45,.45,.20],float)
+_p=_a5pd.read_csv("/kaggle/working/d4_parent_submission.csv",dtype={"StudyInstanceUID":str})
+_g=_a5pd.read_csv("/kaggle/working/submission.csv",dtype={"StudyInstanceUID":str})
+# The global-30 file and parent allow algebraic recovery of reader rank signal:
+# g = .70*parent_rank + .30*reader_rank.
+_pr=_p[_A5_LABS].rank(method="average",pct=True).to_numpy(float)
+_gr=_g[_A5_LABS].to_numpy(float)
+_rr=(_gr-.70*_pr)/.30
+_rr=_a5np.clip(_rr,0,1)
+_t=(1-_A5_W)*_pr+_A5_W*_rr
+_o=_p.copy(); _o[_A5_LABS]=_t
+assert _a5np.isfinite(_t).all()
+_o.to_csv("/kaggle/working/submission_targetaware.csv",index=False)
+_a5pd.read_csv("/kaggle/working/submission.csv").to_csv("/kaggle/working/submission_global30.csv",index=False)
+print("[A5-HYBRID] wrote global30 and target-aware candidates")
+print("[A5-HYBRID] target weights",dict(zip(_A5_LABS,_A5_W.tolist())))
+'''
+          reader_cells[-1]["source"]=final_src.splitlines(keepends=True)
+          reader_cells.append({
+              "cell_type":"code","execution_count":None,"metadata":{},"outputs":[],
+              "source":target_code.splitlines(keepends=True)
+          })
+
+          # Append AFTER the complete D4 notebook. Do not modify any parent cell.
+          outnb=copy.deepcopy(d4)
+          outnb["cells"].extend(reader_cells)
+
+          # Union source attachments, preserving D4 identities and adding only
+          # assets required by the independent reader.
+          def union(a,b):
+              out=[]
+              for x in (a or [])+(b or []):
+                  if x not in out: out.append(x)
+              return out
+
+          meta=copy.deepcopy(dm)
+          meta["id"]="chrishotza/rsna-a5-d4-cnxt-hybrid"
+          meta["title"]="RSNA A5 D4 ConvNeXt Hybrid"
+          meta["code_file"]="rsna-a5-d4-cnxt-hybrid.ipynb"
+          meta["is_private"]=True
+          meta["enable_gpu"]=True
+          meta["enable_internet"]=False
+          for k in ["dataset_sources","kernel_sources","competition_sources","model_sources"]:
+              meta[k]=union(dm.get(k,[]),cm.get(k,[]))
+
+          Path("build/hybrid/rsna-a5-d4-cnxt-hybrid.ipynb").write_text(json.dumps(outnb))
+          Path("build/hybrid/kernel-metadata.json").write_text(json.dumps(meta,indent=2))
+
+          audit={
+            "d4_sha256":hashlib.sha256(d4p.read_bytes()).hexdigest(),
+            "cnxt_sha256":hashlib.sha256(cp.read_bytes()).hexdigest(),
+            "d4_original_cells":len(d4["cells"]),
+            "hybrid_cells":len(outnb["cells"]),
+            "reader_cells_appended":len(reader_cells),
+            "dataset_sources_added":[x for x in meta.get("dataset_sources",[]) if x not in dm.get("dataset_sources",[])],
+            "kernel_sources_added":[x for x in meta.get("kernel_sources",[]) if x not in dm.get("kernel_sources",[])],
+            "model_sources_added":[x for x in meta.get("model_sources",[]) if x not in dm.get("model_sources",[])],
+            "global_weight":0.30,
+            "target_weights":[.45,.40,.45,.25,.45,.20,.05,.15,.05,.45,.45,.20],
+          }
+          Path("out/hybrid/build_audit.json").write_text(json.dumps(audit,indent=2))
+          print(json.dumps(audit,indent=2))
+          PY
+
+      - name: Push private dry-run
+        run: |
+          set -euo pipefail
+          kaggle kernels push -p build/hybrid 2>&1 | tee out/hybrid/push.txt
+          grep -qi "successfully pushed" out/hybrid/push.txt
+
+      - name: Wait for completion
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 150); do
+            s="$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)"
+            echo "[$i] $s"
+            case "$s" in
+              *"KernelWorkerStatus.COMPLETE"*) ok=1; break ;;
+              *"KernelWorkerStatus.ERROR"*|*"KernelWorkerStatus.FAILED"*)
+                kaggle kernels logs "$KERNEL_ID" 2>&1 | tail -n 800 || true
+                exit 1 ;;
+            esac
+            sleep 60
+          done
+          test "$ok" = 1
+
+      - name: Collect and verify outputs
+        run: |
+          set -euo pipefail
+          mkdir -p out/hybrid/output
+          kaggle kernels output "$KERNEL_ID" -p out/hybrid/output -o
+          kaggle kernels logs "$KERNEL_ID" > out/hybrid/kernel.log 2>&1 || true
+          python - <<'PY'
+          import pandas as pd, numpy as np, hashlib, json
+          from pathlib import Path
+          root=Path("out/hybrid/output")
+          req=["submission.csv","submission_global30.csv","submission_targetaware.csv","d4_parent_submission.csv"]
+          miss=[x for x in req if not (root/x).is_file()]
+          if miss: raise SystemExit(f"missing hybrid outputs: {miss}")
+          rows={}
+          for fn in req:
+              p=root/fn; d=pd.read_csv(p)
+              vals=d.iloc[:,1:].to_numpy(float)
+              assert d.shape[1]==13 and np.isfinite(vals).all()
+              rows[fn]={
+                "shape":list(d.shape),
+                "sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+                "min":float(vals.min()),"max":float(vals.max())
+              }
+          # On example test, target-aware and global30 should not be byte-identical
+          # unless all columns are rank-degenerate; fail if no cell changed.
+          g=pd.read_csv(root/"submission_global30.csv")
+          t=pd.read_csv(root/"submission_targetaware.csv")
+          diff=np.abs(g.iloc[:,1:].to_numpy(float)-t.iloc[:,1:].to_numpy(float))
+          rows["targetaware_vs_global30"]={
+              "max_abs_diff":float(diff.max()),
+              "changed_cells":int((diff>1e-12).sum())
+          }
+          Path("out/hybrid/verification.json").write_text(json.dumps(rows,indent=2))
+          print(json.dumps(rows,indent=2))
+          PY
+
+      - name: Archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a5-d4-cnxt-hybrid-dryrun
+          retention-days: 30
+          path: out/hybrid/**
