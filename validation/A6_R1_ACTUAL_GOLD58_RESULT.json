@@ -1,0 +1,31 @@
+{
+  "experiment": "A6-R1",
+  "student": "RadImageNet UAM-Seq A3-1",
+  "teacher_dataset": "chrishotza/rsna-a6-raptor-v5-teacher-4349",
+  "n_teacher": 4349,
+  "n_gold": 58,
+  "weak_extreme_macro_auc": 0.8478898934435503,
+  "gold58_macro_auc": 0.8245601701625386,
+  "elapsed_seconds": 10846.100289106369,
+  "per_target_gold58": {
+    "ACL": 0.7696078431372549,
+    "MCL": 0.8526077097505669,
+    "Medial Meniscus": 0.8125,
+    "Lateral Meniscus": 0.8049689440993789,
+    "Medial OA": 0.9565891472868217,
+    "Lateral OA": 0.8916827852998066,
+    "PF OA": 0.7117117117117117,
+    "Effusion": 0.9478260869565217,
+    "Synovitis": 0.6881720430107527,
+    "Baker's": 0.8695652173913043,
+    "Contusion": 0.8603238866396761,
+    "Fracture": 0.7291666666666666
+  },
+  "provenance": {
+    "kaggle_kernel": "chrishotza/rsna-a6-raptor-student-r1",
+    "github_run": "38034324271",
+    "source": "Kaggle output a6_a3-1_report.json printed in GitHub job 114161511253"
+  },
+  "decision": "REJECT_FOR_LEADERBOARD",
+  "reason": "Gold58 internal AUC below external 0.950 reference; gold58 is not a competition public leaderboard measurement."
+}
