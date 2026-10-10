@@ -220,8 +220,8 @@ jobs:
           cp kaggle/a6_teacher_export/a6_smoke.ipynb a6_push/
           python - <<'PY'
           import json
-          data={"id":"chrishotza/rsna-a6-raptor-full-teacher",
-                "title":"RSNA A6 Raptor full teacher extraction",
+          data={"id":"chrishotza/rsna-a6-raptor-full-teacher-v2",
+                "title":"RSNA A6 Raptor Full Teacher V2",
                 "code_file":"a6_smoke.ipynb",
                 "language":"python","kernel_type":"notebook",
                 "is_private":True,"enable_gpu":True,"enable_internet":True,
@@ -259,9 +259,9 @@ jobs:
         run: |
           set -u
           mkdir -p a6_status
-          kaggle kernels status chrishotza/rsna-a6-raptor-full-teacher -v > a6_status/status.txt 2>&1
+          kaggle kernels status chrishotza/rsna-a6-raptor-full-teacher-v2 -v > a6_status/status.txt 2>&1
           echo "status_exit=$?" >> a6_status/status.txt
-          kaggle kernels output chrishotza/rsna-a6-raptor-full-teacher -p a6_status/output -v > a6_status/output-fetch.txt 2>&1
+          kaggle kernels output chrishotza/rsna-a6-raptor-full-teacher-v2 -p a6_status/output -v > a6_status/output-fetch.txt 2>&1
           echo "output_exit=$?" >> a6_status/output-fetch.txt
           find a6_status/output -maxdepth 3 -type f -printf '%P %s bytes\\n' > a6_status/output-files.txt 2>/dev/null || true
           cat a6_status/status.txt
