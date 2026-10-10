@@ -1,0 +1,21 @@
+{
+  "schema": "rsna_gap_budget_audit_v1",
+  "as_of": "2026-10-10",
+  "target_public_auc": 0.97,
+  "measured_internal_submission_baseline": {
+    "experiment": "A0/A1",
+    "public_auc": 0.94,
+    "source": "validation/LB_AUDIT_2026_10_10.json",
+    "required_macro_gain": 0.03,
+    "required_sum_12_target_auc_gain": 0.36
+  },
+  "external_apex_scenario": {
+    "experiment": "APEX_0950",
+    "reported_public_auc": 0.95,
+    "source": "validation/A6_097_GAP_BUDGET.json",
+    "required_macro_gain": 0.02,
+    "required_sum_12_target_auc_gain": 0.24
+  },
+  "interpretation": "The 0.24 cumulative gain budget is conditional on an externally reported 0.950 Apex parent. It is not the gain required over the strongest in-house measured 0.940 A0/A1 baseline.",
+  "decision": "Do not use external 0.950 as a verified own submission baseline; require paired independent predictions and promotion gate before GPU or Kaggle submission."
+}
