@@ -449,6 +449,10 @@ jobs:
           cat student_check/status.txt
           cat student_check/files.txt
           tail -30 student_check/download.txt
+          echo '=== student log tail ==='
+          find student_check/output -type f -name '*.log' -exec tail -n 100 {} \\; || true
+          echo '=== student artifacts ==='
+          find student_check/output -type f -print | head -50
       - name: Archive student execution evidence
         if: always()
         uses: actions/upload-artifact@v4
