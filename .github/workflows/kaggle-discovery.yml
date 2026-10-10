@@ -427,3 +427,32 @@ jobs:
             a6-student-push.log
             build/a6/kernel-metadata.json
           if-no-files-found: warn
+
+  a6_student_check:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'CHECK A6 STUDENT')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Read Kaggle student state and artifacts
+        shell: bash
+        run: |
+          set +e
+          python -m pip install -q --upgrade kaggle
+          mkdir -p student_check
+          kaggle kernels status chrishotza/rsna-a6-raptor-student-r1 > student_check/status.txt 2>&1
+          echo "status_code=$?" | tee -a student_check/status.txt
+          kaggle kernels output chrishotza/rsna-a6-raptor-student-r1 -p student_check/output > student_check/download.txt 2>&1
+          echo "download_code=$?" | tee -a student_check/download.txt
+          find student_check/output -type f -printf '%P %s bytes\\n' > student_check/files.txt 2>/dev/null
+          cat student_check/status.txt
+          cat student_check/files.txt
+          tail -30 student_check/download.txt
+      - name: Archive student execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-student-r1-status
+          path: student_check/
+          if-no-files-found: warn
