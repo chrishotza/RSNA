@@ -1,0 +1,49 @@
+name: RSNA 16-hour Kaggle evidence watch
+on:
+  schedule:
+    - cron: '35 7-22 10 10 *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Install Kaggle
+        run: python -m pip install -q --upgrade kaggle
+      - name: Audit Kaggle kernels and actual competition submissions
+        run: |
+          mkdir -p audit
+          date -u +%Y-%m-%dT%H:%M:%SZ > audit/checked_at.txt
+          set +e
+          kaggle competitions submissions rsna-knee-abnormality-detection -v -q > audit/submissions.csv 2>audit/submissions.err
+          echo "submissions_exit=$?" > audit/submissions.exit
+          for kernel in rsna-a6-raptor-student-r1 rsna-a6-raptor-full-teacher-v2 rsna-exp-a4-ortho; do
+            kaggle kernels status "chrishotza/$kernel" > "audit/${kernel}.txt" 2>&1
+            echo "exit=$?" >> "audit/${kernel}.txt"
+          done
+          python - <<'PY'
+          import csv,json
+          from pathlib import Path
+          p=Path("audit/submissions.csv")
+          rows=list(csv.DictReader(p.open())) if p.stat().st_size else []
+          selection=[]
+          for row in rows:
+              text=" ".join(str(v) for v in row.values()).lower()
+              if any(x in text for x in ("a3","a4","a6","exp-a","rsna")):
+                  selection.append(row)
+          report={"submission_count":len(rows),"candidate_submissions":selection[-30:]}
+          Path("audit/summary.json").write_text(json.dumps(report,indent=2))
+          print("Submissions found:",len(rows),"candidate matches:",len(selection))
+          for row in selection[-8:]: print(json.dumps(row))
+          PY
+      - name: Archive evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rsna-hourly-kaggle-evidence
+          path: audit/
+          retention-days: 7
