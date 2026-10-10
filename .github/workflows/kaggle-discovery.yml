@@ -310,3 +310,70 @@ jobs:
           name: a6-full-teacher-status
           if-no-files-found: warn
           path: a6_status/
+
+  a6_publish_teacher_dataset:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'PUBLISH A6 DATASET')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Install Kaggle CLI
+        run: python -m pip install -q --upgrade kaggle
+      - name: Fetch teacher outputs from completed Kaggle kernel
+        run: |
+          set -euo pipefail
+          mkdir -p a6_teacher_source a6_teacher_dataset
+          kaggle kernels status chrishotza/rsna-a6-raptor-full-teacher-v2 | tee a6_teacher_source/status.txt
+          grep -q 'COMPLETE' a6_teacher_source/status.txt
+          kaggle kernels output chrishotza/rsna-a6-raptor-full-teacher-v2 -p a6_teacher_source
+          cp a6_teacher_source/a6_result/a6_raptor_v5_visual.csv a6_teacher_dataset/
+          cp a6_teacher_source/a6_result/a6_raptor_v5_manifest.json a6_teacher_dataset/
+      - name: Validate the immutable teacher export before publication
+        run: |
+          python - <<'PY'
+          import csv,json,math
+          from pathlib import Path
+          root=Path("a6_teacher_dataset")
+          manifest=json.loads((root/"a6_raptor_v5_manifest.json").read_text())
+          expected=["ACL","MCL","Medial Meniscus","Lateral Meniscus","Medial OA",
+                    "Lateral OA","PF OA","Effusion","Synovitis","Baker's",
+                    "Contusion","Fracture"]
+          n=0
+          seen=set()
+          with (root/"a6_raptor_v5_visual.csv").open(newline="") as f:
+              reader=csv.DictReader(f)
+              assert reader.fieldnames==["StudyInstanceUID",*expected], reader.fieldnames
+              for r in reader:
+                  uid=r["StudyInstanceUID"]
+                  assert uid and uid not in seen
+                  seen.add(uid)
+                  for k in expected:
+                      v=float(r[k])
+                      assert math.isfinite(v) and 0<=v<=1
+                  n+=1
+          assert n==4349 and manifest["studies"]==4349
+          assert manifest["gold_excluded"]==58 and manifest["no_fallbacks"] is True
+          print("Validated real teacher rows:",n)
+          metadata={"id":"chrishotza/rsna-a6-raptor-v5-teacher-4349",
+                    "title":"RSNA A6 Raptor V5 Teacher 4349",
+                    "subtitle":"Private pseudo-label probabilities from the frozen Raptor V5 teacher",
+                    "description":"Raptor V5 in-sample teacher probabilities for 4349 non-gold RSNA knee studies. Not OOF labels and not a gold58 evaluation.",
+                    "licenses":[{"name":"other"}],
+                    "isPrivate":True}
+          (root/"dataset-metadata.json").write_text(json.dumps(metadata,indent=2))
+          PY
+      - name: Create private dataset on Kaggle
+        run: |
+          set -euo pipefail
+          kaggle datasets create -p a6_teacher_dataset 2>&1 | tee a6-dataset-create.log
+      - name: Upload publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-teacher-dataset-publication
+          if-no-files-found: warn
+          path: |
+            a6-dataset-create.log
+            a6_teacher_source/status.txt
+            a6_teacher_dataset/dataset-metadata.json
