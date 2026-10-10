@@ -377,3 +377,53 @@ jobs:
             a6-dataset-create.log
             a6_teacher_source/status.txt
             a6_teacher_dataset/dataset-metadata.json
+
+  a6_launch_student:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'TRAIN A6 STUDENT')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research
+      - name: Prepare A6 student from independent MRI reader
+        run: |
+          set -euo pipefail
+          python scripts/a6_build_student.py .
+          python -m py_compile build/a6/a6-r1-student.py
+          cat > build/a6/kernel-metadata.json <<'JSON'
+          {
+            "id":"chrishotza/rsna-a6-raptor-student-r1",
+            "title":"RSNA A6 Raptor Student R1",
+            "code_file":"a6-r1-student.py",
+            "language":"python",
+            "kernel_type":"script",
+            "is_private":true,
+            "enable_gpu":true,
+            "enable_internet":false,
+            "machine_shape":"NvidiaTeslaT4",
+            "competition_sources":["rsna-knee-abnormality-detection"],
+            "dataset_sources":[
+              "chrishotza/rsna-a6-raptor-v5-teacher-4349",
+              "marwanmath/resnet-50-radimagenet-marwan"
+            ]
+          }
+          JSON
+      - name: Push A6 training to Kaggle GPU
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade kaggle
+          kaggle kernels push -p build/a6 2>&1 | tee a6-student-push.log
+      - name: Archive training launch receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a6-student-r1-launch
+          path: |
+            a6-student-push.log
+            build/a6/kernel-metadata.json
+          if-no-files-found: warn
