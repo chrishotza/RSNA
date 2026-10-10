@@ -460,3 +460,45 @@ jobs:
           name: a6-student-r1-status
           path: student_check/
           if-no-files-found: warn
+
+  a6_read_student_metrics:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'READ A6 METRICS')
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+    steps:
+      - name: Fetch small A6 R1 metrics without checkpoint artifacts
+        run: |
+          set -euo pipefail
+          python -m pip install -q kaggle
+          mkdir -p a6_metrics
+          kaggle kernels output chrishotza/rsna-a6-raptor-student-r1 -p a6_metrics
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path("a6_metrics")
+          names=["a6_a3-1_report.json","a6_raptor_student_comparison.json"]
+          for n in names:
+              matches=list(root.rglob(n))
+              if len(matches)!=1:
+                  raise RuntimeError(f"{n}: expected 1, found {len(matches)}")
+              data=json.loads(matches[0].read_text())
+              print(f"=== {n} ===")
+              if n=="a6_a3-1_report.json":
+                  print(json.dumps({k:data.get(k) for k in ("variant","weak_extreme_macro_auc","gold58_macro_auc","gold58_per_target")},indent=2))
+              else:
+                  print(json.dumps({k:data.get(k) for k in ("experiment","elapsed_seconds","pseudo_label_path")},indent=2))
+          PY
+      - name: Archive only JSON reports
+        if: always()
+        run: |
+          mkdir -p a6_metrics_evidence
+          find a6_metrics -type f -name '*report.json' -exec cp {} a6_metrics_evidence/ \\; || true
+          find a6_metrics -type f -name '*comparison.json' -exec cp {} a6_metrics_evidence/ \\; || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a6-r1-metrics-only
+          path: a6_metrics_evidence/
+          if-no-files-found: warn
