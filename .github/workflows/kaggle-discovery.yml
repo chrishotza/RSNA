@@ -259,16 +259,17 @@ jobs:
         run: |
           set +e
           mkdir -p a6_status
-          kaggle kernels status chrishotza/rsna-a6-raptor-full-teacher-v2 -v > a6_status/status.txt 2>&1
+          kaggle kernels status chrishotza/rsna-a6-raptor-full-teacher-v2 > a6_status/status.txt 2>&1
           status_rc=$?
           echo "status_exit=$status_rc" >> a6_status/status.txt
-          kaggle kernels output chrishotza/rsna-a6-raptor-full-teacher-v2 -p a6_status/output -v > a6_status/output-fetch.txt 2>&1
+          kaggle kernels output chrishotza/rsna-a6-raptor-full-teacher-v2 -p a6_status/output > a6_status/output-fetch.txt 2>&1
           output_rc=$?
           echo "output_exit=$output_rc" >> a6_status/output-fetch.txt
           find a6_status/output -maxdepth 3 -type f -printf '%P %s bytes\\n' > a6_status/output-files.txt 2>/dev/null || true
           cat a6_status/status.txt
           cat a6_status/output-files.txt
           cat a6_status/output-fetch.txt | tail -25
+          if [ "$status_rc" -ne 0 ] || [ "$output_rc" -ne 0 ]; then exit 1; fi
           exit 0
       - name: Upload teacher completion evidence
         if: always()
