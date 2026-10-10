@@ -271,6 +271,38 @@ jobs:
           cat a6_status/output-fetch.txt | tail -25
           if [ "$status_rc" -ne 0 ] || [ "$output_rc" -ne 0 ]; then exit 1; fi
           exit 0
+      - name: Validate actual 4349-row teacher CSV
+        run: |
+          python - <<'PY'
+          import csv,json,math
+          from pathlib import Path
+          d=Path("a6_status/output/a6_result")
+          csvpath=d/"a6_raptor_v5_visual.csv"
+          manifest=json.loads((d/"a6_raptor_v5_manifest.json").read_text())
+          targets=["ACL","MCL","Medial Meniscus","Lateral Meniscus",
+                   "Medial OA","Lateral OA","PF OA","Effusion",
+                   "Synovitis","Baker's","Contusion","Fracture"]
+          with csvpath.open(newline="",encoding="utf-8") as fp:
+              reader=csv.DictReader(fp)
+              assert reader.fieldnames==["StudyInstanceUID",*targets],reader.fieldnames
+              seen=set()
+              for row in reader:
+                  uid=row["StudyInstanceUID"]
+                  assert uid and uid not in seen,uid
+                  seen.add(uid)
+                  for key in targets:
+                      p=float(row[key])
+                      assert math.isfinite(p) and 0<=p<=1,(uid,key,p)
+          assert len(seen)==4349,len(seen)
+          assert manifest["studies"]==4349,manifest
+          assert manifest["gold_excluded"]==58,manifest
+          assert manifest["no_fallbacks"] is True,manifest
+          result={"status":"VALID","studies":len(seen),"targets":12,
+                  "gold_excluded":58,"teacher":manifest["teacher"],
+                  "sha256":manifest["sha256"]}
+          (Path("a6_status")/"a6_validation.json").write_text(json.dumps(result,indent=2))
+          print(json.dumps(result,indent=2))
+          PY
       - name: Upload teacher completion evidence
         if: always()
         uses: actions/upload-artifact@v4
