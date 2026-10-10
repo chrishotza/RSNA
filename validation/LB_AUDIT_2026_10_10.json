@@ -1,0 +1,48 @@
+{
+  "as_of": "2026-10-10T07:36:26Z",
+  "source": {
+    "github_run": 38034992413,
+    "github_job": 114163464558,
+    "source_type": "kaggle competitions submissions rsna-knee-abnormality-detection -v -q"
+  },
+  "scores": [
+    {
+      "experiment": "A0",
+      "submission_ids": [
+        "56904847",
+        "56904871",
+        "56906382",
+        "56906411"
+      ],
+      "public_score": 0.94
+    },
+    {
+      "experiment": "A1",
+      "submission_id": "56988112",
+      "public_score": 0.94
+    },
+    {
+      "experiment": "A2",
+      "submission_id": "57002021",
+      "public_score": null,
+      "status": "COMPLETE; score blank"
+    },
+    {
+      "experiment": "A3",
+      "submission_id": "57012257",
+      "public_score": 0.843
+    },
+    {
+      "experiment": "A4",
+      "submission_id": "57008842",
+      "public_score": 0.908
+    }
+  ],
+  "a6": {
+    "kaggle_status": "COMPLETE",
+    "gold58_macro_auc": 0.8245601701625386,
+    "public_score": null,
+    "submitted": false
+  },
+  "decision": "A0/A1 0.940 tied; A3/A4 worse; no A6 submission; do not submit unvalidated candidate."
+}
