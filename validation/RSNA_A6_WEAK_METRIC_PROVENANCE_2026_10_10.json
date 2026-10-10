@@ -1,0 +1,36 @@
+{
+  "schema": "rsna_a6_weak_metric_provenance_v1",
+  "as_of": "2026-10-10",
+  "experiment": "A6-R1",
+  "reported_weak_extreme_macro_auc": 0.8478898934435503,
+  "reported_gold58_macro_auc": 0.8245601701625386,
+  "weak_metric_status": "MIXED_GOLD_AND_PSEUDO_TARGETS",
+  "finding": "A3 prepare_targets replaces weak labels with gold labels where gold_mask is true. A6 builder excludes gold from training and masks gold in epoch selection but does not change evaluate_variant weak_binary=high_conf_binary_targets(targets). Therefore the reported weak AUC is not strictly pseudo-only.",
+  "evidence": [
+    {
+      "path": "notebooks/experiments/EXP-A3-rank-train.py",
+      "lines": "604-626",
+      "expression": "targets=np.where(gold_mask,gold_values,weak)"
+    },
+    {
+      "path": "notebooks/experiments/EXP-A3-rank-train.py",
+      "lines": "916-939",
+      "expression": "weak_binary=high_conf_binary_targets(targets)"
+    },
+    {
+      "path": "scripts/a6_build_student.py",
+      "detail": "train exclusion and val masking only; evaluate_variant remains unchanged"
+    }
+  ],
+  "interpretation": {
+    "reported_weak_auc_pseudo_only": false,
+    "reported_gold58_is_public_lb": false,
+    "predictive_gain_demonstrated": false
+  },
+  "next_steps": [
+    "Recompute weak-extreme AUC using original weak labels and the exact A6 OOF predictions aligned by StudyInstanceUID.",
+    "Do not promote A6 using gold58 or weak metric until independent paired validation against A0 exists.",
+    "Do not spend GPU or Kaggle submissions to repair metric reporting."
+  ],
+  "provenance_source": "validation/A6_R1_ACTUAL_GOLD58_RESULT.json"
+}
